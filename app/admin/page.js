@@ -20,6 +20,59 @@ export default function AdminDashboard() {
   const [verificando, setVerificando] = useState(true);
   const [mostrarCriarUsuario, setMostrarCriarUsuario] = useState(false);
   const router = useRouter();
+  const [novoEmail, setNovoEmail] = useState('');
+  const [novoUsername, setNovoUsername] = useState('');
+  const [novaSenha, setNovaSenha] = useState('');
+  const [novoRole, setNovoRole] = useState('membro');
+  const [loadingForm, setLoadingForm] = useState(false);
+
+  const handleCriarUsuario = async (e) => {
+    e.preventDefault();
+    setLoadingForm(true);
+
+    try {
+      // Pega o token da sessão atual para provar para a API que você é admin
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        alert('Erro: Sessão não encontrada.');
+        setLoadingForm(false);
+        return;
+      }
+
+      const res = await fetch('/api/admin/create-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}` // Envia o crachá de admin
+        },
+        body: JSON.stringify({
+          email: novoEmail,
+          password: novaSenha,
+          username: novoUsername,
+          role: novoRole
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(`Erro ao criar: ${data.error}`);
+      } else {
+        alert('✅ Sucesso! O usuário foi criado e já pode logar no Complexo.');
+        // Limpa o formulário
+        setNovoEmail('');
+        setNovoUsername('');
+        setNovaSenha('');
+        setMostrarCriarUsuario(false);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Erro de conexão ao tentar criar usuário.');
+    } finally {
+      setLoadingForm(false);
+    }
+  };
 
   // Mocks de estado para a Interface (No futuro você conectará ao Supabase)
   const [usuarios, setUsuarios] = useState([
@@ -115,22 +168,22 @@ export default function AdminDashboard() {
 
             {/* FORMULÁRIO DE CRIAR USUÁRIO */}
             {mostrarCriarUsuario && (
-              <div style={{ background: 'rgba(0,0,0,0.4)', padding: '20px', borderRadius: '8px', border: `1px dashed ${cores.brandPink}`, marginBottom: '20px' }}>
+              <form onSubmit={handleCriarUsuario} style={{ background: 'rgba(0,0,0,0.4)', padding: '20px', borderRadius: '8px', border: `1px dashed ${cores.brandPink}`, marginBottom: '20px' }}>
                 <h3 style={{ marginTop: 0, color: cores.brandPink }}>Cadastrar Novo Acesso</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
-                  <input type="email" placeholder="E-mail" style={inputStyle} />
-                  <input type="text" placeholder="Nome de Usuário (Ex: Player3)" style={inputStyle} />
-                  <input type="password" placeholder="Senha Provisória" style={inputStyle} />
-                  <select style={inputStyle}>
+                  <input type="email" placeholder="E-mail" value={novoEmail} onChange={(e) => setNovoEmail(e.target.value)} style={inputStyle} required />
+                  <input type="text" placeholder="Nome de Usuário (Ex: Player3)" value={novoUsername} onChange={(e) => setNovoUsername(e.target.value)} style={inputStyle} required />
+                  <input type="password" placeholder="Senha Provisória" value={novaSenha} onChange={(e) => setNovaSenha(e.target.value)} style={inputStyle} required minLength={6} />
+                  <select value={novoRole} onChange={(e) => setNovoRole(e.target.value)} style={inputStyle}>
                     <option value="membro">Cargo: Membro Comum</option>
                     <option value="admin">Cargo: Administrador</option>
                     <option value="convidado">Cargo: Convidado (Temporário)</option>
                   </select>
                 </div>
-                <button style={{ background: cores.green, color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', width: '100%' }}>
-                  Criar Conta e Enviar Credenciais
+                <button type="submit" disabled={loadingForm} style={{ background: cores.green, color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '6px', fontWeight: 'bold', cursor: loadingForm ? 'not-allowed' : 'pointer', width: '100%', opacity: loadingForm ? 0.7 : 1 }}>
+                  {loadingForm ? 'Processando...' : 'Criar Conta e Liberar Acesso'}
                 </button>
-              </div>
+              </form>
             )}
 
             {/* LISTA DE USUÁRIOS */}
