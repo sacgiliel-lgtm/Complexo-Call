@@ -1,8 +1,14 @@
 'use client';
 import { useState, Suspense, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { LiveKitRoom, RoomAudioRenderer, VideoConference, useParticipants, useIsSpeaking } from '@livekit/components-react';
+import { createClient } from '@supabase/supabase-js';
 import '@livekit/components-styles';
+
+// --- INICIALIZA O SUPABASE ---
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 // --- PALETA DE CORES "COMPLEXO" ---
 const cores = { 
@@ -13,8 +19,8 @@ const cores = {
   muted: '#a89db5',       // Texto secundário/apagado
   hover: 'rgba(232, 0, 104, 0.15)',  // Rosa transparente para hover
   active: 'rgba(155, 0, 232, 0.25)', // Roxo transparente para ativo
-  green: '#23a559',       // Mantido para status online
-  red: '#e80068',         // Vermelho substituído pelo rosa neon da marca para sair
+  green: '#23a559',       // Para status online
+  red: '#e80068',         // Vermelho substituído pelo rosa neon para desconectar
   brandPink: '#e80068',
   brandPurple: '#9b00e8',
   gradient: 'linear-gradient(90deg, #e80068 0%, #9b00e8 100%)' // Gradiente da marca
@@ -67,12 +73,43 @@ function ListaDePresenca({ canalAtual }) {
 // --- COMPONENTE PRINCIPAL ---
 function ServidorContent() {
   const searchParams = useSearchParams();
-  const username = searchParams.get('user') || `User_${Math.floor(Math.random() * 1000)}`;
+  const usernameUrl = searchParams.get('user') || `User_${Math.floor(Math.random() * 1000)}`;
+  const router = useRouter();
 
-  const canaisDeVoz = ['Geral', 'Jogos', 'Reunião Dev'];
+  // Estados do Usuário
+  const [username, setUsername] = useState(usernameUrl);
+  const [cargo, setCargo] = useState('carregando'); // admin, membro ou convidado
+  
+  // Estados da Call
+  const canaisDeVoz = ['Geral', 'Jogos', 'Reunião Dev']; // No futuro, puxar do banco
   const [canalAtual, setCanalAtual] = useState(null);
   const [token, setToken] = useState('');
   const [conectando, setConectando] = useState(false);
+
+  // Busca o cargo do usuário assim que ele entra
+  useEffect(() => {
+    async function carregarPerfil() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: perfil } = await supabase
+          .from('profiles')
+          .select('username, role')
+          .eq('id', user.id)
+          .single();
+
+        if (perfil) {
+          setUsername(perfil.username);
+          setCargo(perfil.role);
+        } else {
+          setCargo('membro'); // fallback
+        }
+      } else {
+        // Se for um visitante sem conta logada
+        setCargo('convidado');
+      }
+    }
+    carregarPerfil();
+  }, []);
 
   const conectarCanal = async (canal) => {
     if (canalAtual === canal) return;
@@ -157,16 +194,34 @@ function ServidorContent() {
           ))}
         </div>
 
-        {/* Rodapé - Perfil do Usuário Logado */}
+        {/* Rodapé - Perfil do Usuário Logado e Controles */}
         <div style={{ padding: '12px', backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', gap: '10px', borderTop: `1px solid rgba(155, 0, 232, 0.2)` }}>
           <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: cores.gradient, display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '14px', color: '#fff', flexShrink: 0, fontWeight: 'bold', boxShadow: `0 0 10px rgba(232, 0, 104, 0.3)` }}>
             {username.substring(0,2).toUpperCase()}
           </div>
+          
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <span style={{ fontSize: '14px', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#fff' }}>{username}</span>
+            <span style={{ fontSize: '14px', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#fff' }}>
+              {username}
+              {cargo === 'admin' && <span style={{fontSize: '9px', background: cores.brandPink, color: '#fff', padding: '2px 4px', borderRadius: '4px', marginLeft: '6px', verticalAlign: 'middle'}}>ADMIN</span>}
+            </span>
             <span style={{ fontSize: '11px', color: cores.green, fontWeight: 'bold' }}>{canalAtual ? 'Online na Call' : 'Online'}</span>
           </div>
           
+          {/* Botão Painel Admin */}
+          {cargo === 'admin' && (
+            <button 
+              onClick={() => router.push('/admin')} 
+              title="Acessar Painel Admin" 
+              style={{ background: 'transparent', border: `1px solid ${cores.brandPurple}`, color: cores.brandPurple, borderRadius: '6px', padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+              onMouseOver={e => {e.currentTarget.style.backgroundColor = cores.brandPurple; e.currentTarget.style.color = '#fff'}}
+              onMouseOut={e => {e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = cores.brandPurple}}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+            </button>
+          )}
+
+          {/* Botão Desconectar Call */}
           {canalAtual && (
             <button 
               onClick={desconectar} 
