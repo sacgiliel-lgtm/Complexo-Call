@@ -14,23 +14,90 @@ export default function Home() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', fontFamily: 'sans-serif', backgroundColor: '#313338' }}>
-      <div style={{ backgroundColor: '#2b2d31', padding: '40px', borderRadius: '8px', boxShadow: '0 4px 10px rgba(0,0,0,0.3)', width: '300px', textAlign: 'center' }}>
-        <h2 style={{ margin: '0 0 20px 0', color: '#f2f3f5' }}>Bem-vindo</h2>
-        <form onSubmit={entrar} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+    <div style={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      alignItems: 'center', 
+      justifyContent: 'center', 
+      height: '100vh', 
+      fontFamily: 'sans-serif', 
+      /* Configuração da Imagem de Fundo */
+      backgroundImage: 'url("/fundo-login.jpg")', 
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat',
+      position: 'relative'
+    }}>
+      
+      {/* Camada escura por cima da imagem para dar destaque à caixa central */}
+      <div style={{
+        position: 'absolute',
+        top: 0, left: 0, right: 0, bottom: 0,
+        backgroundColor: 'rgba(15, 5, 20, 0.65)', // Tom escuro levemente roxo
+        zIndex: 0
+      }}></div>
+
+      {/* Caixa de Login (Estilo Vidro/Neon) */}
+      <div style={{ 
+        backgroundColor: 'rgba(20, 10, 30, 0.75)', 
+        backdropFilter: 'blur(8px)', // Efeito de vidro embaçado
+        padding: '50px 40px', 
+        borderRadius: '12px', 
+        boxShadow: '0 0 30px rgba(232, 0, 104, 0.4)', // Brilho externo rosa
+        border: '2px solid #e80068', // Borda rosa magenta
+        width: '320px', 
+        textAlign: 'center',
+        zIndex: 1
+      }}>
+        <h2 style={{ 
+          margin: '0 0 30px 0', 
+          color: '#ffffff',
+          fontSize: '32px',
+          fontWeight: '900',
+          textTransform: 'uppercase',
+          letterSpacing: '2px',
+          textShadow: '3px 3px 0px #9b00e8' // Sombra roxa no texto
+        }}>
+          Complexo
+        </h2>
+
+        <form onSubmit={entrar} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <input 
             type="text" 
-            placeholder="Como quer ser chamado?" 
+            placeholder="Nome do Personagem" 
             value={nome}
             onChange={(e) => setNome(e.target.value)}
-            style={{ padding: '12px', borderRadius: '4px', border: 'none', backgroundColor: '#1e1f22', color: '#dbdee1', outline: 'none' }}
+            style={{ 
+              padding: '15px', 
+              borderRadius: '6px', 
+              border: '1px solid #9b00e8', // Borda roxa no input
+              backgroundColor: 'rgba(0, 0, 0, 0.6)', 
+              color: '#ffffff', 
+              outline: 'none',
+              fontSize: '16px',
+              textAlign: 'center'
+            }}
             required
           />
-          <button type="submit" style={{ padding: '12px', borderRadius: '4px', border: 'none', backgroundColor: '#5865F2', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>
-            Entrar no Servidor
+          <button type="submit" style={{ 
+            padding: '15px', 
+            borderRadius: '6px', 
+            border: 'none', 
+            // Degradê puxando as cores da segunda imagem (Rosa para Roxo)
+            background: 'linear-gradient(90deg, #e80068 0%, #9b00e8 100%)', 
+            color: 'white', 
+            fontWeight: '900', 
+            fontSize: '16px',
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+            letterSpacing: '1px',
+            boxShadow: '0 4px 15px rgba(232, 0, 104, 0.5)' // Sombra rosa no botão
+          }}>
+            Entrar na Call
           </button>
         </form>
       </div>
+      
     </div>
   );
 }
