@@ -1,31 +1,8 @@
 'use client';
 import { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { LiveKitRoom, RoomAudioRenderer, ControlBar, GridLayout, ParticipantTile, useTracks, LayoutContextProvider } from '@livekit/components-react';
-import { Track } from 'livekit-client';
+import { LiveKitRoom, RoomAudioRenderer, VideoConference } from '@livekit/components-react';
 import '@livekit/components-styles';
-
-// Sub-componente para gerenciar a renderização dos vídeos de forma inteligente
-function AreaDeVideo() {
-  const tracks = useTracks(
-    [
-      { source: Track.Source.Camera, withPlaceholder: true },
-      { source: Track.Source.ScreenShare, withPlaceholder: false },
-    ],
-    { onlySubscribed: false },
-  );
-
-  return (
-    <div style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-      {/* O ERRO FOI CONSERTADO AQUI COM A ADIÇÃO DO LayoutContextProvider */}
-      <LayoutContextProvider>
-        <GridLayout tracks={tracks} style={{ height: '100%', minHeight: '300px' }}>
-          <ParticipantTile />
-        </GridLayout>
-      </LayoutContextProvider>
-    </div>
-  );
-}
 
 function ServidorContent() {
   const searchParams = useSearchParams();
@@ -38,7 +15,7 @@ function ServidorContent() {
   const conectarCanal = async (canal) => {
     if (canalAtual === canal) return;
     setCanalAtual(canal);
-    setToken(''); // Limpa a conexão anterior
+    setToken(''); 
     try {
       const res = await fetch(`/api/token?room=${encodeURIComponent(canal)}&username=${encodeURIComponent(username)}`);
       const data = await res.json();
@@ -53,7 +30,6 @@ function ServidorContent() {
     setToken('');
   };
 
-  // Paleta de cores do Discord
   const cores = {
     bg: '#313338',
     sidebar: '#2b2d31',
@@ -141,13 +117,9 @@ function ServidorContent() {
               {/* Processa o áudio em background */}
               <RoomAudioRenderer />
               
-              {/* O Grid de vídeos */}
-              <AreaDeVideo />
-
-              {/* Controles do Usuário */}
-              <div style={{ padding: '15px', backgroundColor: cores.sidebar, display: 'flex', justifyContent: 'center', borderTop: `1px solid ${cores.servers}` }}>
-                <ControlBar variation="minimal" controls={{ camera: true, microphone: true, screenShare: true, chat: true, leave: false }} />
-              </div>
+              {/* O Componente Nativo que já inclui o LayoutContext, Grid e Barra de Ferramentas */}
+              <VideoConference />
+              
             </LiveKitRoom>
           ) : (
             <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#949ba4', flexDirection: 'column', gap: '20px' }}>
