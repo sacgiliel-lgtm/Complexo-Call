@@ -4,34 +4,47 @@ import { useSearchParams } from 'next/navigation';
 import { LiveKitRoom, RoomAudioRenderer, VideoConference, useParticipants, useIsSpeaking } from '@livekit/components-react';
 import '@livekit/components-styles';
 
+// --- PALETA DE CORES "COMPLEXO" ---
+const cores = { 
+  bg: '#0a030d',          // Fundo principal bem escuro
+  sidebar: '#140a1e',     // Fundo da sidebar (roxo super escuro)
+  servers: '#050108',     // Fundo da barra de servidores
+  text: '#ffffff',        // Texto principal
+  muted: '#a89db5',       // Texto secundário/apagado
+  hover: 'rgba(232, 0, 104, 0.15)',  // Rosa transparente para hover
+  active: 'rgba(155, 0, 232, 0.25)', // Roxo transparente para ativo
+  green: '#23a559',       // Mantido para status online
+  red: '#e80068',         // Vermelho substituído pelo rosa neon da marca para sair
+  brandPink: '#e80068',
+  brandPurple: '#9b00e8',
+  gradient: 'linear-gradient(90deg, #e80068 0%, #9b00e8 100%)' // Gradiente da marca
+};
+
 // --- COMPONENTE DE MEMBRO ONLINE ---
-// Este componente renderiza a bolinha de usuário debaixo do canal
 function MembroConectado({ participant }) {
   const isSpeaking = useIsSpeaking(participant);
 
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px 6px 30px', 
-      borderRadius: '4px', color: isSpeaking ? '#fff' : '#949ba4',
+      borderRadius: '4px', color: isSpeaking ? cores.text : cores.muted,
       transition: 'all 0.2s ease', cursor: 'default'
     }}>
-      {/* Avatar do Usuário */}
       <div style={{
         width: '24px', height: '24px', borderRadius: '50%', 
-        backgroundColor: '#5865F2', display: 'flex', justifyContent: 'center', alignItems: 'center',
+        background: cores.gradient, display: 'flex', justifyContent: 'center', alignItems: 'center',
         fontSize: '10px', color: '#fff', fontWeight: 'bold',
-        // Borda verde pulsante se estiver falando
-        border: isSpeaking ? '2px solid #23a559' : '2px solid transparent',
-        boxShadow: isSpeaking ? '0 0 8px rgba(35, 165, 89, 0.4)' : 'none'
+        border: isSpeaking ? `2px solid ${cores.brandPink}` : '2px solid transparent',
+        boxShadow: isSpeaking ? `0 0 10px rgba(232, 0, 104, 0.6)` : 'none',
+        transition: 'all 0.2s'
       }}>
         {participant.name ? participant.name.substring(0, 2).toUpperCase() : 'US'}
       </div>
-      <span style={{ fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+      <span style={{ fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textShadow: isSpeaking ? `0 0 5px ${cores.brandPink}` : 'none' }}>
         {participant.name || participant.identity}
       </span>
-      {/* Ícone de Mutado se não estiver falando e estiver silenciado (opcional visual) */}
       {!isSpeaking && !participant.isMicrophoneEnabled && (
-         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ed4245" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginLeft: 'auto'}}><line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path><path d="M17 16.95A7 7 0 0 1 5 12H3a9 9 0 0 0 11.5 8.65"></path></svg>
+         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={cores.brandPink} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginLeft: 'auto'}}><line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path><path d="M17 16.95A7 7 0 0 1 5 12H3a9 9 0 0 0 11.5 8.65"></path></svg>
       )}
     </div>
   );
@@ -39,9 +52,7 @@ function MembroConectado({ participant }) {
 
 // --- COMPONENTE DE LISTA DE PRESENÇA ---
 function ListaDePresenca({ canalAtual }) {
-  // Puxa todos os participantes da sala atual via LiveKit
   const participants = useParticipants();
-
   if (!participants || participants.length === 0) return null;
 
   return (
@@ -85,36 +96,34 @@ function ServidorContent() {
     setToken('');
   };
 
-  const cores = { bg: '#313338', sidebar: '#2b2d31', servers: '#1e1f22', text: '#dbdee1', hover: '#3f4147', active: '#404249', green: '#23a559', red: '#da373c', brand: '#5865F2' };
-
   return (
     <div style={{ display: 'flex', height: '100vh', width: '100vw', backgroundColor: cores.bg, color: cores.text, fontFamily: 'sans-serif', overflow: 'hidden' }}>
       
-      {/* Barra Esquerda - Servidores (Opcional, estilo Discord) */}
-      <div style={{ width: '70px', backgroundColor: cores.servers, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '15px 0', gap: '10px', flexShrink: 0 }}>
+      {/* Barra Esquerda - Servidores */}
+      <div style={{ width: '70px', backgroundColor: cores.servers, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '15px 0', gap: '10px', flexShrink: 0, borderRight: `1px solid rgba(155, 0, 232, 0.2)` }}>
         <div style={{ 
-          width: '48px', height: '48px', borderRadius: '24px', backgroundColor: cores.brand, 
-          display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold', cursor: 'pointer',
-          transition: 'all 0.2s', boxShadow: '0 4px 10px rgba(0,0,0,0.3)'
+          width: '48px', height: '48px', borderRadius: '16px', background: cores.gradient, 
+          display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: '900', cursor: 'pointer',
+          transition: 'all 0.3s', boxShadow: `0 0 15px rgba(232, 0, 104, 0.4)`
         }} 
-        onMouseOver={e => e.currentTarget.style.borderRadius = '12px'}
-        onMouseOut={e => e.currentTarget.style.borderRadius = '24px'}
+        onMouseOver={e => {e.currentTarget.style.borderRadius = '10px'; e.currentTarget.style.boxShadow = `0 0 20px rgba(155, 0, 232, 0.8)`}}
+        onMouseOut={e => {e.currentTarget.style.borderRadius = '16px'; e.currentTarget.style.boxShadow = `0 0 15px rgba(232, 0, 104, 0.4)`}}
         >
           CPX
         </div>
       </div>
 
       {/* Sidebar - Canais do Servidor */}
-      <div style={{ width: '250px', backgroundColor: cores.sidebar, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+      <div style={{ width: '250px', backgroundColor: cores.sidebar, display: 'flex', flexDirection: 'column', flexShrink: 0, borderRight: `1px solid rgba(232, 0, 104, 0.1)` }}>
         
         {/* Cabeçalho do Servidor */}
-        <div style={{ padding: '16px', fontWeight: '900', borderBottom: `1px solid ${cores.servers}`, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', color: '#fff', textTransform: 'uppercase', letterSpacing: '1px' }}>
+        <div style={{ padding: '20px 16px', fontWeight: '900', borderBottom: `1px solid rgba(232, 0, 104, 0.2)`, color: '#ffffff', fontSize: '20px', textTransform: 'uppercase', letterSpacing: '2px', textShadow: `2px 2px 0px ${cores.brandPurple}` }}>
           Complexo
         </div>
         
         {/* Lista de Canais */}
         <div style={{ flex: 1, padding: '15px 10px', overflowY: 'auto' }}>
-          <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#949ba4', marginBottom: '8px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <div style={{ fontSize: '12px', fontWeight: 'bold', color: cores.brandPink, marginBottom: '12px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px', letterSpacing: '1px' }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 5L6 9H2v6h4l5 4V5z"></path></svg>
             Canais de Voz
           </div>
@@ -125,19 +134,20 @@ function ServidorContent() {
               <div 
                 onClick={() => conectarCanal(canal)} 
                 style={{ 
-                  padding: '8px 10px', borderRadius: '6px', cursor: 'pointer', 
+                  padding: '10px 12px', borderRadius: '6px', cursor: 'pointer', 
                   backgroundColor: canalAtual === canal ? cores.active : 'transparent', 
+                  borderLeft: canalAtual === canal ? `3px solid ${cores.brandPink}` : '3px solid transparent',
                   display: 'flex', alignItems: 'center', gap: '8px', 
-                  color: canalAtual === canal ? '#fff' : '#949ba4',
-                  transition: 'all 0.1s ease', fontWeight: canalAtual === canal ? '600' : '500'
+                  color: canalAtual === canal ? cores.text : cores.muted,
+                  transition: 'all 0.2s ease', fontWeight: canalAtual === canal ? '600' : '500',
+                  marginBottom: '2px'
                 }} 
-                onMouseOver={(e) => { if(canalAtual !== canal) { e.currentTarget.style.backgroundColor = cores.hover; e.currentTarget.style.color = '#dbdee1'; } }} 
-                onMouseOut={(e) => { if(canalAtual !== canal) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#949ba4'; } }}
+                onMouseOver={(e) => { if(canalAtual !== canal) { e.currentTarget.style.backgroundColor = cores.hover; e.currentTarget.style.color = cores.text; } }} 
+                onMouseOut={(e) => { if(canalAtual !== canal) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = cores.muted; } }}
               >
-                <span style={{color: '#80848e', fontSize: '18px'}}>#</span> {canal}
+                <span style={{color: canalAtual === canal ? cores.brandPink : cores.brandPurple, fontSize: '18px'}}>#</span> {canal}
               </div>
               
-              {/* Se o canal atual for este, exibe quem está dentro dele */}
               {canalAtual === canal && token && (
                 <LiveKitRoom token={token} serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} connect={true}>
                   <ListaDePresenca canalAtual={canal} />
@@ -148,22 +158,22 @@ function ServidorContent() {
         </div>
 
         {/* Rodapé - Perfil do Usuário Logado */}
-        <div style={{ padding: '10px', backgroundColor: '#232428', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: cores.green, display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '12px', color: '#fff', flexShrink: 0, fontWeight: 'bold' }}>
+        <div style={{ padding: '12px', backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', gap: '10px', borderTop: `1px solid rgba(155, 0, 232, 0.2)` }}>
+          <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: cores.gradient, display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '14px', color: '#fff', flexShrink: 0, fontWeight: 'bold', boxShadow: `0 0 10px rgba(232, 0, 104, 0.3)` }}>
             {username.substring(0,2).toUpperCase()}
           </div>
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <span style={{ fontSize: '14px', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#fff' }}>{username}</span>
-            <span style={{ fontSize: '11px', color: '#949ba4' }}>{canalAtual ? 'Online' : 'Invisível'}</span>
+            <span style={{ fontSize: '11px', color: cores.green, fontWeight: 'bold' }}>{canalAtual ? 'Online na Call' : 'Online'}</span>
           </div>
           
           {canalAtual && (
             <button 
               onClick={desconectar} 
               title="Desconectar" 
-              style={{ background: cores.hover, border: 'none', color: cores.red, borderRadius: '6px', padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
-              onMouseOver={e => e.currentTarget.style.backgroundColor = 'rgba(218, 55, 60, 0.2)'}
-              onMouseOut={e => e.currentTarget.style.backgroundColor = cores.hover}
+              style={{ background: 'transparent', border: `1px solid ${cores.red}`, color: cores.red, borderRadius: '6px', padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+              onMouseOver={e => {e.currentTarget.style.backgroundColor = cores.red; e.currentTarget.style.color = '#fff'}}
+              onMouseOut={e => {e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = cores.red}}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 3H6a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h4M16 17l5-5-5-5M19 12H9"/></svg>
             </button>
@@ -171,16 +181,20 @@ function ServidorContent() {
         </div>
       </div>
 
-      {/* Área Principal - Chat e Vídeo com Design Moderno */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: cores.bg }}>
+      {/* Área Principal - Chat e Vídeo */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundImage: 'radial-gradient(circle at center, #1a0822 0%, #0a030d 100%)' }}>
         
         {/* Topbar da Área de Vídeo */}
-        <div style={{ height: '52px', borderBottom: `1px solid ${cores.servers}`, display: 'flex', alignItems: 'center', padding: '0 20px', fontWeight: 'bold', backgroundColor: cores.bg, flexShrink: 0, gap: '10px' }}>
-          <span style={{color: '#80848e', fontSize: '20px'}}>#</span>
+        <div style={{ height: '64px', borderBottom: `1px solid rgba(232, 0, 104, 0.1)`, display: 'flex', alignItems: 'center', padding: '0 20px', fontWeight: 'bold', flexShrink: 0, gap: '10px' }}>
+          <span style={{color: cores.brandPurple, fontSize: '24px'}}>#</span>
           {canalAtual ? (
-            <span style={{color: '#fff'}}>{canalAtual} <span style={{color: cores.brand, marginLeft: '10px', fontSize: '12px', fontWeight: 'normal', backgroundColor: 'rgba(88, 101, 242, 0.2)', padding: '2px 6px', borderRadius: '4px'}}>Call Ativa</span></span>
+            <span style={{color: '#fff', fontSize: '18px'}}>{canalAtual} 
+              <span style={{background: cores.gradient, color: '#fff', marginLeft: '12px', fontSize: '11px', fontWeight: 'bold', padding: '4px 8px', borderRadius: '4px', textTransform: 'uppercase', letterSpacing: '1px'}}>
+                Call Ativa
+              </span>
+            </span>
           ) : (
-             <span style={{color: '#949ba4'}}>Nenhum canal selecionado</span>
+             <span style={{color: cores.muted}}>Nenhum canal selecionado</span>
           )}
         </div>
 
@@ -188,8 +202,8 @@ function ServidorContent() {
         <div style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', padding: canalAtual ? '0' : '20px' }}>
           
           {conectando && (
-            <div style={{position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 10, backgroundColor: 'rgba(49, 51, 56, 0.8)'}}>
-              <span style={{color: '#fff', fontWeight: 'bold', animation: 'pulse 1.5s infinite'}}>Conectando ao servidor...</span>
+            <div style={{position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 10, backgroundColor: 'rgba(10, 3, 13, 0.85)', backdropFilter: 'blur(5px)'}}>
+              <span style={{color: cores.brandPink, fontWeight: 'bold', animation: 'pulse 1.5s infinite', fontSize: '18px', textTransform: 'uppercase', letterSpacing: '2px'}}>Estabelecendo Conexão...</span>
             </div>
           )}
 
@@ -200,16 +214,15 @@ function ServidorContent() {
               style={{ display: 'flex', flexDirection: 'column', height: '100%', maxHeight: '100%', overflow: 'hidden' }}
             >
               <RoomAudioRenderer />
-              {/* O VideoConference agora renderiza lindamente no centro */}
               <VideoConference />
             </LiveKitRoom>
           ) : (
-            <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#949ba4', flexDirection: 'column', gap: '20px', backgroundColor: cores.sidebar, borderRadius: '8px', border: `1px dashed ${cores.servers}` }}>
-              <div style={{width: '80px', height: '80px', borderRadius: '50%', backgroundColor: cores.servers, display: 'flex', justifyContent: 'center', alignItems: 'center'}}>
-                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#5865F2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+            <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', color: cores.muted, flexDirection: 'column', gap: '20px', backgroundColor: 'rgba(20, 10, 30, 0.4)', borderRadius: '12px', border: `1px dashed ${cores.brandPurple}`, margin: '20px' }}>
+              <div style={{width: '90px', height: '90px', borderRadius: '50%', background: `linear-gradient(135deg, rgba(232,0,104,0.2) 0%, rgba(155,0,232,0.2) 100%)`, display: 'flex', justifyContent: 'center', alignItems: 'center', border: `1px solid ${cores.brandPink}`}}>
+                 <svg width="45" height="45" viewBox="0 0 24 24" fill="none" stroke={cores.brandPink} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
               </div>
-              <h3 style={{color: '#fff', margin: 0}}>Pronto para jogar?</h3>
-              <p style={{margin: 0, fontSize: '14px', maxWidth: '300px', textAlign: 'center'}}>Selecione um canal de voz à esquerda para entrar na call e conversar com a galera.</p>
+              <h3 style={{color: '#fff', margin: 0, fontSize: '24px', letterSpacing: '1px'}}>Pronto para a ação?</h3>
+              <p style={{margin: 0, fontSize: '15px', maxWidth: '350px', textAlign: 'center', color: cores.muted}}>Selecione um canal de voz no menu à esquerda para entrar na call com o Complexo.</p>
             </div>
           )}
         </div>
@@ -221,7 +234,7 @@ function ServidorContent() {
 
 export default function ServidorPage() {
   return (
-    <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#313338', color: '#fff' }}>Carregando Base...</div>}>
+    <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#0a030d', color: '#e80068', fontWeight: 'bold' }}>CARREGANDO COMPLEXO...</div>}>
       <ServidorContent />
     </Suspense>
   );
