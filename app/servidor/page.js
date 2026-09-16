@@ -1,28 +1,8 @@
 'use client';
-import { useState, useEffect, Suspense } from 'react';
+import { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { LiveKitRoom, RoomAudioRenderer, ControlBar, GridLayout, ParticipantTile, useTracks } from '@livekit/components-react';
-import { Track } from 'livekit-client';
+import { LiveKitRoom, RoomAudioRenderer, VideoConference } from '@livekit/components-react';
 import '@livekit/components-styles';
-
-// Sub-componente para gerenciar a renderização dos vídeos de forma inteligente
-function AreaDeVideo() {
-  const tracks = useTracks(
-    [
-      { source: Track.Source.Camera, withPlaceholder: true },
-      { source: Track.Source.ScreenShare, withPlaceholder: false },
-    ],
-    { onlySubscribed: false },
-  );
-
-  return (
-    <div style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-      <GridLayout tracks={tracks} style={{ height: '100%', minHeight: '300px' }}>
-        <ParticipantTile />
-      </GridLayout>
-    </div>
-  );
-}
 
 function ServidorContent() {
   const searchParams = useSearchParams();
@@ -35,7 +15,7 @@ function ServidorContent() {
   const conectarCanal = async (canal) => {
     if (canalAtual === canal) return;
     setCanalAtual(canal);
-    setToken(''); // Limpa a conexão anterior
+    setToken(''); 
     try {
       const res = await fetch(`/api/token?room=${encodeURIComponent(canal)}&username=${encodeURIComponent(username)}`);
       const data = await res.json();
@@ -50,7 +30,6 @@ function ServidorContent() {
     setToken('');
   };
 
-  // Paleta de cores do Discord
   const cores = {
     bg: '#313338',
     sidebar: '#2b2d31',
@@ -64,21 +43,22 @@ function ServidorContent() {
   };
 
   return (
-    <div style={{ display: 'flex', height: '100vh', width: '100vw', backgroundColor: cores.bg, color: cores.text, fontFamily: 'sans-serif' }}>
+    <div style={{ display: 'flex', height: '100vh', width: '100vw', backgroundColor: cores.bg, color: cores.text, fontFamily: 'sans-serif', overflow: 'hidden' }}>
+      
       {/* Barra Esquerda - Servidores */}
-      <div style={{ width: '70px', backgroundColor: cores.servers, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '15px 0', gap: '10px' }}>
+      <div style={{ width: '70px', backgroundColor: cores.servers, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '15px 0', gap: '10px', flexShrink: 0 }}>
         <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: cores.brand, display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold', cursor: 'pointer' }}>
           M
         </div>
       </div>
 
       {/* Sidebar - Canais do Servidor */}
-      <div style={{ width: '240px', backgroundColor: cores.sidebar, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ width: '240px', backgroundColor: cores.sidebar, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
         <div style={{ padding: '16px', fontWeight: 'bold', borderBottom: `1px solid ${cores.servers}`, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
           Meu Servidor
         </div>
         
-        <div style={{ flex: 1, padding: '15px 10px' }}>
+        <div style={{ flex: 1, padding: '15px 10px', overflowY: 'auto' }}>
           <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#949ba4', marginBottom: '8px', textTransform: 'uppercase' }}>
             🔊 Canais de Voz
           </div>
@@ -105,47 +85,38 @@ function ServidorContent() {
 
         {/* Rodapé - Perfil e Controles */}
         <div style={{ padding: '10px', backgroundColor: '#232428', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: cores.green, display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '12px', color: '#fff' }}>
+          <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: cores.green, display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '12px', color: '#fff', flexShrink: 0 }}>
             {username.substring(0,2).toUpperCase()}
           </div>
           <div style={{ flex: 1, fontSize: '14px', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {username}
           </div>
           {canalAtual && (
-            <button onClick={desconectar} title="Desconectar" style={{ background: cores.hover, border: 'none', color: cores.red, borderRadius: '4px', padding: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <button onClick={desconectar} title="Desconectar" style={{ background: cores.hover, border: 'none', color: cores.red, borderRadius: '4px', padding: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 3H6a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h4M16 17l5-5-5-5M19 12H9"/></svg>
             </button>
           )}
         </div>
       </div>
 
-      {/* Área Principal - Chat e Vídeo */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <div style={{ height: '52px', borderBottom: `1px solid ${cores.servers}`, display: 'flex', alignItems: 'center', padding: '0 15px', fontWeight: 'bold', backgroundColor: cores.bg }}>
+      {/* Área Principal - Chat e Vídeo com CSS Corrigido para não estourar a tela */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ height: '52px', borderBottom: `1px solid ${cores.servers}`, display: 'flex', alignItems: 'center', padding: '0 15px', fontWeight: 'bold', backgroundColor: cores.bg, flexShrink: 0 }}>
           {canalAtual ? `Conectado no canal: ${canalAtual}` : '👋 Bem-vindo! Selecione um canal de voz à esquerda.'}
         </div>
 
-        <div style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
           {canalAtual && token ? (
             <LiveKitRoom
               video={false} 
-              audio={true} // O áudio liga por padrão ao entrar, estilo Discord
+              audio={true} 
               token={token}
               serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
               data-lk-theme="default"
-              style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
+              style={{ display: 'flex', flexDirection: 'column', height: '100%', maxHeight: '100%', overflow: 'hidden' }}
             >
-              {/* Processa o áudio em background */}
               <RoomAudioRenderer />
-              
-              {/* O Grid de vídeos renderiza dinamicamente apenas quem ligar a câmera/tela */}
-              <AreaDeVideo />
-
-              {/* Controles do Usuário (Microfone, Câmera, Compartilhar Tela) */}
-              <div style={{ padding: '15px', backgroundColor: cores.sidebar, display: 'flex', justifyContent: 'center', borderTop: `1px solid ${cores.servers}` }}>
-                {/* Desabilitamos o botão de 'leave' nativo porque criamos o nosso próprio no rodapé da Sidebar */}
-                <ControlBar variation="minimal" controls={{ camera: true, microphone: true, screenShare: true, chat: true, leave: false }} />
-              </div>
+              <VideoConference />
             </LiveKitRoom>
           ) : (
             <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#949ba4', flexDirection: 'column', gap: '20px' }}>
@@ -155,6 +126,7 @@ function ServidorContent() {
           )}
         </div>
       </div>
+      
     </div>
   );
 }
