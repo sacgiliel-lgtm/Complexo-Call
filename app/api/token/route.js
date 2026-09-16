@@ -3,7 +3,7 @@ import { AccessToken } from 'livekit-server-sdk';
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const room = searchParams.get('room');
-  const username = searchParams.get('username');
+  const username = searchParams.get('username'); // atualizar vercel
 
   if (!room || !username) {
     return Response.json({ error: 'Faltando room ou username' }, { status: 400 });
