@@ -1,11 +1,11 @@
 'use client';
-import { useEffect, useState, use } from 'react';
+import { useEffect, useState } from 'react'; // <-- Removido o 'use' daqui
 import { LiveKitRoom, VideoConference } from '@livekit/components-react';
 import '@livekit/components-styles';
 
 export default function SalaDeChamada({ params }) {
-  const resolvedParams = use(params);
-  const roomName = resolvedParams.id;
+  // Correção: No Next.js 14, acessamos o params.id diretamente
+  const roomName = params.id;
   const [token, setToken] = useState('');
 
   useEffect(() => {
