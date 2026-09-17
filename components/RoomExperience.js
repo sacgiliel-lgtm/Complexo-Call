@@ -1,3 +1,3 @@
 'use client';
 
-export { CallExperience as RoomExperience } from './CallPolish';
+export { CallExperience as RoomExperience } from './CallPolishSafe';
