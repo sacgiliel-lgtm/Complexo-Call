@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ConnectionState, Track } from 'livekit-client';
+import { Track } from 'livekit-client';
 import { LiveKitRoom, MediaDeviceMenu, RoomAudioRenderer, StartMediaButton, useConnectionState, useLocalParticipant, useParticipants, useRoomContext, VideoConference } from '@livekit/components-react';
 import { Icon, Avatar, EmptyState, Badge } from './ui';
 
@@ -47,14 +47,13 @@ function RoomConnectedExperience({ channel, user, rightTab, rightPanelOpen, onRi
   const filtered = participantFilter.trim() ? sorted.filter((participant) => displayName(participant).toLowerCase().includes(participantFilter.toLowerCase())) : sorted;
   const filteredMessages = chatSearch.trim() ? messages.filter((message) => `${message.sender_name} ${message.content}`.toLowerCase().includes(chatSearch.toLowerCase())) : messages;
   const stateLabel = String(connectionState || '').toLowerCase();
-  const qualityValue = String(localParticipant?.connectionQuality || '').toLowerCase();
-  const connectionLabel = stateLabel.includes('reconnecting') ? 'Reconectando...' : qualityValue.includes('poor') ? 'Conexão ruim' : qualityValue.includes('good') ? 'Conexão boa' : qualityValue.includes('excellent') ? 'Conexão excelente' : stateLabel.includes('connected') ? 'Conectado' : 'Conectando...';
-  const connectionTone = connectionLabel.includes('ruim') ? 'red' : connectionLabel.includes('boa') || connectionLabel.includes('Recon') ? 'yellow' : connectionLabel.includes('excelente') || connectionLabel === 'Conectado' ? 'green' : 'neutral';
+  const connectionLabel = stateLabel.includes('reconnecting') ? 'Reconectando...' : stateLabel.includes('connected') ? 'Conectado' : 'Conectando...';
+  const connectionTone = connectionLabel.includes('Recon') ? 'yellow' : connectionLabel === 'Conectado' ? 'green' : 'neutral';
 
   return <div className={`room-experience ${theme}`}>
     <section className="call-area">
       <div className="call-stage cpx-video-conf"><VideoConference /></div>
-      <div className="call-status-chip"><span className={`presence-dot ${connectionTone === 'yellow' ? 'away' : connectionTone === 'red' ? 'busy' : ''}`} />{connectionLabel}</div>
+      <div className="call-status-chip"><span className={`presence-dot ${connectionTone === 'yellow' ? 'away' : ''}`} />{connectionLabel}</div>
       <div className="call-room-chip"><span>#</span>{channel.name}<small>{user.username}</small></div>
       <div className="call-mini-stats"><Badge tone="purple">{participants.length} {participants.length === 1 ? 'pessoa' : 'pessoas'}</Badge>{channel.guest_access && <Badge tone="yellow">Convidados</Badge>}</div>
       <CallControls />
@@ -74,6 +73,7 @@ function RoomConnectedExperience({ channel, user, rightTab, rightPanelOpen, onRi
 function CallControls() {
   const { localParticipant, isMicrophoneEnabled, isCameraEnabled, isScreenShareEnabled } = useLocalParticipant();
   const room = useRoomContext();
+
   useEffect(() => {
     const handler = (event) => {
       const target = event.target;
@@ -86,6 +86,7 @@ function CallControls() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [localParticipant, isMicrophoneEnabled, isCameraEnabled, isScreenShareEnabled, room]);
+
   return <div className="call-toolbar">
     <button onClick={() => localParticipant?.setMicrophoneEnabled(!isMicrophoneEnabled)} className={`call-control ${isMicrophoneEnabled ? '' : 'is-off'}`} title={isMicrophoneEnabled ? 'Desativar microfone (M)' : 'Ativar microfone (M)'}><Icon name={isMicrophoneEnabled ? 'mic' : 'close'} /></button>
     <button onClick={() => localParticipant?.setCameraEnabled(!isCameraEnabled)} className={`call-control ${isCameraEnabled ? '' : 'is-off'}`} title={isCameraEnabled ? 'Desativar câmera (C)' : 'Ativar câmera (C)'}><Icon name={isCameraEnabled ? 'camera' : 'close'} /></button>
