@@ -4,6 +4,7 @@ import './workspace-overrides.css';
 import './cpx-identity.css';
 import './complexo-brand.css';
 import CpxPalette from '../components/CpxPalette';
+import ChannelSync from '../components/ChannelSync';
 
 export const metadata = {
   title: 'CPX Call',
@@ -18,7 +19,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="pt-BR">
-      <body><CpxPalette />{children}</body>
+      <body><CpxPalette /><ChannelSync />{children}</body>
     </html>
   );
 }
