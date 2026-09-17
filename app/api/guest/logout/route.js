@@ -1,6 +1,9 @@
 import { getGuestTicketFromCookie, verifyGuestTicket } from '../../../../lib/guestTicket';
 import { getSupabaseAdmin } from '../../../../lib/supabaseAdmin';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function POST(request) {
   try {
     const ticket = getGuestTicketFromCookie(request);
