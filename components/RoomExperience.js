@@ -20,7 +20,7 @@ function RoomConnectedExperience({ channel, user, rightTab, rightPanelOpen, onRi
   const participants = useParticipants();
   const connectionState = useConnectionState();
   const { localParticipant } = useLocalParticipant();
-  const { quality } = useConnectionQualityIndicator({ participant: localParticipant });
+  const { quality } = useConnectionQualityIndicator();
   const [chatSearch, setChatSearch] = useState('');
   const previous = useRef(new Set());
   const mounted = useRef(false);
