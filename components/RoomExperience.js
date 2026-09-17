@@ -80,51 +80,14 @@ export function RoomExperience({ token, serverUrl, channel, user, rightTab, righ
     finishTimerRef.current = window.setTimeout(() => onDisconnect?.({ duration }), 2600);
   }
 
-  if (endedSummary) {
-    return <CallEndedScreen channel={channel} user={user} duration={endedSummary.duration} onBack={() => onDisconnect?.({ duration: endedSummary.duration })} />;
-  }
-
+  if (endedSummary) return <CallEndedScreen channel={channel} user={user} duration={endedSummary.duration} onBack={() => onDisconnect?.({ duration: endedSummary.duration })} />;
   if (!ready) {
-    return <CallLobby
-      channel={channel}
-      user={user}
-      audio={joinAudio}
-      video={joinVideo}
-      setAudio={setJoinAudio}
-      setVideo={setJoinVideo}
-      onCancel={() => onDisconnect?.()}
-      onJoin={() => setReady(true)}
-    />;
+    return <CallLobby channel={channel} user={user} audio={joinAudio} video={joinVideo} setAudio={setJoinAudio} setVideo={setJoinVideo} onCancel={() => onDisconnect?.()} onJoin={() => setReady(true)} />;
   }
 
-  return <LiveKitRoom
-    token={token}
-    serverUrl={serverUrl}
-    connect
-    audio={joinAudio}
-    video={joinVideo}
-    onConnected={handleConnected}
-    onDisconnected={handleDisconnected}
-    onError={(error) => onToast?.({ type: 'error', title: 'Falha na chamada', message: error?.message || 'A conexão foi interrompida.' })}
-  >
+  return <LiveKitRoom token={token} serverUrl={serverUrl} connect audio={joinAudio} video={joinVideo} onConnected={handleConnected} onDisconnected={handleDisconnected} onError={(error) => onToast?.({ type: 'error', title: 'Falha na chamada', message: error?.message || 'A conexão foi interrompida.' })}>
     <RoomAudioRenderer />
-    <RoomConnectedExperience
-      channel={channel}
-      user={user}
-      rightTab={rightTab}
-      rightPanelOpen={rightPanelOpen}
-      onRightTab={onRightTab}
-      onCloseRight={() => onRightTab('participants', false)}
-      messages={messages}
-      messageText={messageText}
-      setMessageText={setMessageText}
-      onSendMessage={onSendMessage}
-      onToast={onToast}
-      onDisconnect={() => document.dispatchEvent(new CustomEvent('cpx-call-disconnect'))}
-      onModerate={onModerate}
-      participantFilter={participantFilter}
-      theme={theme}
-    />
+    <RoomConnectedExperience channel={channel} user={user} rightTab={rightTab} rightPanelOpen={rightPanelOpen} onRightTab={onRightTab} onCloseRight={() => onRightTab('participants', false)} messages={messages} messageText={messageText} setMessageText={setMessageText} onSendMessage={onSendMessage} onToast={onToast} onModerate={onModerate} participantFilter={participantFilter} theme={theme} />
     <StartMediaButton label="Ativar áudio" className="secondary-btn start-media-button" />
   </LiveKitRoom>;
 }
@@ -152,7 +115,7 @@ function CallLobby({ channel, user, audio, video, setAudio, setVideo, onCancel, 
   </div>;
 }
 
-function RoomConnectedExperience({ channel, user, rightTab, rightPanelOpen, onRightTab, onCloseRight, messages, messageText, setMessageText, onSendMessage, onToast, onDisconnect, onModerate, participantFilter, theme }) {
+function RoomConnectedExperience({ channel, user, rightTab, rightPanelOpen, onRightTab, onCloseRight, messages, messageText, setMessageText, onSendMessage, onToast, onModerate, participantFilter, theme }) {
   const participants = useParticipants();
   const cameraTracks = useTracks([{ source: Track.Source.Camera, withPlaceholder: true }]);
   const screenTracks = useTracks([{ source: Track.Source.ScreenShare, withPlaceholder: false }]);
@@ -166,7 +129,6 @@ function RoomConnectedExperience({ channel, user, rightTab, rightPanelOpen, onRi
   const [elapsed, setElapsed] = useState(0);
   const previous = useRef(new Set());
   const mounted = useRef(false);
-
   const { quality } = useConnectionQualityIndicator({ participant: localParticipant });
 
   useEffect(() => {
@@ -188,32 +150,6 @@ function RoomConnectedExperience({ channel, user, rightTab, rightPanelOpen, onRi
     mounted.current = true;
   }, [participants, channel.name, localParticipant?.identity, onToast]);
 
-  useEffect(() => {
-    const handler = (event) => {
-      const target = event.target;
-      if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
-      if (event.key.toLowerCase() === 'm') document.querySelector('[data-call-action="mic"]')?.click();
-      if (event.key.toLowerCase() === 'c') document.querySelector('[data-call-action="camera"]')?.click();
-      if (event.key.toLowerCase() === 's') document.querySelector('[data-call-action="screen"]')?.click();
-      if (event.key.toLowerCase() === 'f') setFocusMode((value) => !value);
-      if (event.key === 'Escape') document.dispatchEvent(new CustomEvent('cpx-call-disconnect'));
-    };
-    window.addEventListener('keydown', handler);
-    const disconnect = () => useRoomDisconnect();
-    return () => {
-      window.removeEventListener('keydown', handler);
-      void disconnect;
-    };
-  }, []);
-
-  useEffect(() => {
-    const disconnectHandler = () => {
-      onDisconnect?.();
-    };
-    document.addEventListener('cpx-call-disconnect', disconnectHandler);
-    return () => document.removeEventListener('cpx-call-disconnect', disconnectHandler);
-  }, [onDisconnect]);
-
   const sorted = useMemo(() => [...participants].sort((a, b) => {
     if (a.isSpeaking !== b.isSpeaking) return a.isSpeaking ? -1 : 1;
     if (a.identity === localParticipant?.identity) return -1;
@@ -228,9 +164,7 @@ function RoomConnectedExperience({ channel, user, rightTab, rightPanelOpen, onRi
   const stateLabel = String(connectionState || '').toLowerCase();
   const connectionLabel = stateLabel.includes('reconnecting') ? 'Reconectando...' : stateLabel.includes('connected') ? 'Conectado' : 'Conectando...';
   const connectionTone = connectionLabel.includes('Recon') ? 'yellow' : connectionLabel === 'Conectado' ? 'green' : 'neutral';
-
   const cameraRefFor = (participant) => cameraTracks.find((trackRef) => trackRef.participant.identity === participant.identity);
-  const screenRefFor = (participant) => screenTracks.find((trackRef) => trackRef.participant.identity === participant.identity);
 
   return <div className={`room-experience ${theme} ${focusMode ? 'focus-mode' : ''}`}>
     <section className="call-area">
@@ -242,29 +176,22 @@ function RoomConnectedExperience({ channel, user, rightTab, rightPanelOpen, onRi
           <button className="icon-btn topbar-btn" onClick={() => onRightTab('chat', true)} title="Abrir chat"><Icon name="chat" size={17} /></button>
         </div>
       </div>
-
       <div className="call-stage custom-call-stage">
         {screenTracks.length > 0 && <div className="screen-share-stage">{screenTracks.map((trackRef) => <div className="screen-share-card" key={trackRef.publication?.trackSid || trackRef.participant.identity}><VideoTrack trackRef={trackRef} /><div className="screen-share-label"><Icon name="monitor" size={12} /> {displayName(trackRef.participant)} está compartilhando a tela</div></div>)}</div>}
-        {!screenTracks.length && filtered.length > 0 && <div className={`participant-grid count-${Math.min(filtered.length, 9)}`}>
-          {filtered.map((participant) => {
-            const name = displayName(participant);
-            const local = participant.identity === localParticipant?.identity;
-            const cameraRef = cameraRefFor(participant);
-            const role = participantRole(participant);
-            const focused = focusMode && participant.identity === activeFocus;
-            return <ParticipantCard key={participant.identity} participant={participant} name={name} local={local} role={role} cameraRef={cameraRef} focused={focused} onFocus={() => setFocusedIdentity(participant.identity)} />;
-          })}
-        </div>}
+        {!screenTracks.length && filtered.length > 0 && <div className={`participant-grid count-${Math.min(filtered.length, 9)}`}>{filtered.map((participant) => {
+          const name = displayName(participant);
+          const local = participant.identity === localParticipant?.identity;
+          const cameraRef = cameraRefFor(participant);
+          const role = participantRole(participant);
+          const focused = focusMode && participant.identity === activeFocus;
+          return <ParticipantCard key={participant.identity} participant={participant} name={name} local={local} role={role} cameraRef={cameraRef} focused={focused} onFocus={() => setFocusedIdentity(participant.identity)} />;
+        })}</div>}
         {!filtered.length && <EmptyState icon="users" title="Ninguém nesta chamada" description="Quando alguém entrar, o participante aparecerá aqui." />}
         <div className="stage-vignette" />
         <div className="stage-shortcuts"><span><kbd>M</kbd> microfone</span><span><kbd>C</kbd> câmera</span><span><kbd>S</kbd> tela</span><span><kbd>F</kbd> foco</span><span><kbd>Esc</kbd> sair</span></div>
       </div>
-
-      <div className="call-floating-controls">
-        <CallControls focusMode={focusMode} setFocusMode={setFocusMode} moreOpen={moreOpen} setMoreOpen={setMoreOpen} />
-      </div>
+      <div className="call-floating-controls"><CallControls focusMode={focusMode} setFocusMode={setFocusMode} moreOpen={moreOpen} setMoreOpen={setMoreOpen} /></div>
     </section>
-
     <aside className={`right-panel ${rightPanelOpen ? 'open' : ''}`}>
       <div className="right-tabs"><button className={`right-tab ${rightTab === 'participants' ? 'active' : ''}`} onClick={() => onRightTab('participants', true)}>Pessoas <span className="channel-count">{participants.length}</span></button><button className={`right-tab ${rightTab === 'chat' ? 'active' : ''}`} onClick={() => onRightTab('chat', true)}>Chat{messages.length > 0 && <span className="chat-tab-dot" />}</button></div>
       <button className="icon-btn mobile-only" onClick={onCloseRight} aria-label="Fechar painel" style={{ position: 'absolute', right: 5, top: 6, zIndex: 4 }}><Icon name="close" size={16} /></button>
@@ -292,7 +219,20 @@ function CallControls({ focusMode, setFocusMode, moreOpen, setMoreOpen }) {
   const camera = useTrackToggle({ source: Track.Source.Camera });
   const screen = useTrackToggle({ source: Track.Source.ScreenShare });
   const room = useRoomContext();
-  const [permissionError, setPermissionError] = useState('');
+
+  useEffect(() => {
+    const handler = (event) => {
+      const target = event.target;
+      if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+      if (event.key.toLowerCase() === 'm') document.querySelector('[data-call-action="mic"]')?.click();
+      if (event.key.toLowerCase() === 'c') document.querySelector('[data-call-action="camera"]')?.click();
+      if (event.key.toLowerCase() === 's') document.querySelector('[data-call-action="screen"]')?.click();
+      if (event.key.toLowerCase() === 'f') setFocusMode((value) => !value);
+      if (event.key === 'Escape') room?.disconnect();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [room, setFocusMode]);
 
   const action = (control, label, icon, key) => <button type="button" data-call-action={key} {...control.buttonProps} className={`call-control ${control.enabled ? 'enabled' : 'is-off'} ${control.pending ? 'pending' : ''}`} title={label}>{control.enabled ? <Icon name={icon} size={19} /> : <span className="control-off-mark"><Icon name="close" size={17} /></span>}<span className="control-label">{label}</span></button>;
 
@@ -302,15 +242,10 @@ function CallControls({ focusMode, setFocusMode, moreOpen, setMoreOpen }) {
       {action(camera, camera.enabled ? 'Câmera' : 'Ativar câmera', 'camera', 'camera')}
       {action(screen, screen.enabled ? 'Parar tela' : 'Compartilhar tela', 'monitor', 'screen')}
       <button type="button" className={`call-control focus-control ${focusMode ? 'selected' : ''}`} onClick={() => setFocusMode((value) => !value)} title={focusMode ? 'Sair do modo foco' : 'Modo foco (F)'}><Icon name="maximize" size={18} /><span className="control-label">Foco</span></button>
-      <div className="device-menu-wrap"><button type="button" className={`call-control ${moreOpen ? 'selected' : ''}`} onClick={() => setMoreOpen((value) => !value)} title="Mais opções"><Icon name="settings" size={18} /><span className="control-label">Mais</span></button>{moreOpen && <div className="call-more-menu"><div className="more-menu-title">Dispositivos</div><MediaDeviceMenu kind="audioinput" className="device-menu-item"><Icon name="mic" size={15} /> Microfone</MediaDeviceMenu><MediaDeviceMenu kind="videoinput" className="device-menu-item"><Icon name="camera" size={15} /> Câmera</MediaDeviceMenu><div className="more-menu-divider" /><div className="more-menu-status">{permissionError ? permissionError : 'Os dispositivos podem ser alterados durante a chamada.'}</div></div>}</div>
+      <div className="device-menu-wrap"><button type="button" className={`call-control ${moreOpen ? 'selected' : ''}`} onClick={() => setMoreOpen((value) => !value)} title="Mais opções"><Icon name="settings" size={18} /><span className="control-label">Mais</span></button>{moreOpen && <div className="call-more-menu"><div className="more-menu-title">Dispositivos</div><MediaDeviceMenu kind="audioinput" className="device-menu-item"><Icon name="mic" size={15} /> Microfone</MediaDeviceMenu><MediaDeviceMenu kind="videoinput" className="device-menu-item"><Icon name="camera" size={15} /> Câmera</MediaDeviceMenu><div className="more-menu-divider" /><div className="more-menu-status">Selecione outro microfone ou câmera sem sair da chamada.</div></div>}</div>
       <button type="button" className="call-control call-exit" title="Sair da call" onClick={() => room?.disconnect()}><Icon name="phone" size={19} /><span className="control-label">Sair</span></button>
     </div>
-    {permissionError && <button type="button" className="permission-toast" onClick={() => setPermissionError('')} aria-label="Fechar aviso">Não foi possível acessar um dispositivo. Verifique as permissões do navegador.</button>}
   </>;
-}
-
-function useRoomDisconnect() {
-  return null;
 }
 
 function CallEndedScreen({ channel, user, duration, onBack }) {
