@@ -10,10 +10,10 @@ function livekitService() {
   return new RoomServiceClient(host, process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET);
 }
 
-async function requireAdmin(request) {
+async function requireMember(request) {
   const actor = await getRequestActor(request);
   if (!actor.ok) return { response: actorResponse(actor) };
-  if (actor.role !== 'admin') return { response: Response.json({ error: 'Apenas administradores podem gerenciar participantes.' }, { status: 403 }) };
+  if (actor.role === 'convidado') return { response: Response.json({ error: 'Apenas membros podem mover participantes.' }, { status: 403 }) };
   return { actor };
 }
 
@@ -24,35 +24,26 @@ async function getActiveChannel(admin, name) {
 }
 
 export async function GET(request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireMember(request);
   if (auth.response) return auth.response;
   const { actor } = auth;
   const room = String(new URL(request.url).searchParams.get('room') || '').trim();
   if (!room) return Response.json({ error: 'Informe a sala.' }, { status: 400 });
-
   try {
     const channel = await getActiveChannel(actor.admin, room);
     if (!channel?.is_active) return Response.json({ error: 'Sala indisponível.' }, { status: 404 });
     const service = livekitService();
     if (!service) return Response.json({ error: 'LiveKit não configurado.' }, { status: 500 });
     const participants = await service.listParticipants(room);
-    return Response.json({
-      room,
-      participants: (participants || []).map((participant) => ({
-        identity: participant.identity,
-        name: participant.name || participant.identity,
-        sid: participant.sid,
-        state: participant.state,
-      })),
-    });
+    return Response.json({ room, participants: (participants || []).map((participant) => ({ identity: participant.identity, name: participant.name || participant.identity, sid: participant.sid, state: participant.state })) });
   } catch (error) {
-    console.error('Admin participants GET:', error);
+    console.error('Participants GET:', error);
     return Response.json({ error: 'Não foi possível consultar os participantes.' }, { status: 500 });
   }
 }
 
 export async function POST(request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireMember(request);
   if (auth.response) return auth.response;
   const { actor } = auth;
   const body = await request.json().catch(() => ({}));
@@ -61,7 +52,6 @@ export async function POST(request) {
   const identity = String(body.identity || '').trim();
   if (!sourceRoom || !destinationRoom || !identity) return Response.json({ error: 'Sala de origem, destino e participante são obrigatórios.' }, { status: 400 });
   if (sourceRoom === destinationRoom) return Response.json({ error: 'A sala de destino precisa ser diferente da sala de origem.' }, { status: 400 });
-  if (identity === actor.id) return Response.json({ error: 'Você não pode mover a própria sessão.' }, { status: 400 });
 
   try {
     const [sourceChannel, destinationChannel] = await Promise.all([
@@ -71,30 +61,32 @@ export async function POST(request) {
     if (!sourceChannel?.is_active) return Response.json({ error: 'A sala de origem não está disponível.' }, { status: 404 });
     if (!destinationChannel?.is_active) return Response.json({ error: 'A sala de destino não está disponível.' }, { status: 404 });
 
+    const { data: settings } = await actor.admin.from('server_settings').select('max_users').eq('id', 1).maybeSingle();
     const service = livekitService();
     if (!service) return Response.json({ error: 'LiveKit não configurado.' }, { status: 500 });
 
+    if (settings?.max_users) {
+      try {
+        const destinationParticipants = await service.listParticipants(destinationRoom);
+        if ((destinationParticipants?.length || 0) >= Number(settings.max_users)) return Response.json({ error: 'A call de destino atingiu o limite máximo de participantes.' }, { status: 409 });
+      } catch (countError) {
+        if (!(countError?.status === 404 || countError?.code === 'not_found' || countError?.code === 'NOT_FOUND')) throw countError;
+      }
+    }
+
     const participant = await service.getParticipant(sourceRoom, identity).catch(() => null);
     if (!participant) return Response.json({ error: 'Esse participante não está mais na sala de origem.' }, { status: 404 });
-
     await service.moveParticipant(sourceRoom, identity, destinationRoom);
 
     const displayName = participant.name || identity;
     try {
-      await actor.admin.from('activity_logs').insert({
-        actor_id: actor.id,
-        actor_name: actor.username,
-        action: 'participant_moved',
-        target: displayName,
-        details: `De #${sourceRoom} para #${destinationRoom}`,
-      });
+      await actor.admin.from('activity_logs').insert({ actor_id: actor.id, actor_name: actor.username, action: 'participant_moved', target: displayName, details: `De #${sourceRoom} para #${destinationRoom}` });
     } catch (error) {
       console.error('Participant move log:', error);
     }
-
     return Response.json({ ok: true, participant: { identity, name: displayName }, sourceRoom, destinationRoom });
   } catch (error) {
-    console.error('Admin participants POST:', error);
+    console.error('Participants POST:', error);
     return Response.json({ error: 'Não foi possível mover o participante. A sala de destino pode estar indisponível ou o participante pode ter saído.' }, { status: 500 });
   }
 }
