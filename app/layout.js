@@ -1,7 +1,8 @@
 import './globals.css';
 import './cpx-extra.css';
 import './workspace-overrides.css';
-import './oasis-inspired.css';
+import './cpx-identity.css';
+import CpxPalette from '../components/CpxPalette';
 
 export const metadata = {
   title: 'CPX Call',
@@ -16,7 +17,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="pt-BR">
-      <body>{children}</body>
+      <body><CpxPalette />{children}</body>
     </html>
   );
 }
