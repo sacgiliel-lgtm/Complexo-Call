@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from '../../../lib/supabaseAdmin';
+import { getSupabaseAdmin } from '../../../../lib/supabaseAdmin';
 
 export async function POST(request) {
   try {
