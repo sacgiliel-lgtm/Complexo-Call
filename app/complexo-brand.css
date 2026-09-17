@@ -1,0 +1,12 @@
+:root{--complexo-purple:#7f3fbf;--complexo-red:#d64047;--complexo-ink:#0a0910}
+
+/* Official Complexo marks: local assets added to the repository. */
+.cpx-home-brand{gap:14px}
+.cpx-home-logo{width:192px;height:48px;display:block;flex:none;border:0;border-radius:0;background:transparent url('/ComplexoHorinzontal–Branco.png') center/contain no-repeat;box-shadow:none;transform:none;color:transparent;font-size:0;line-height:0}
+.cpx-home-brand>span:last-child{display:none}
+.server-shell.no-right .sidebar-brand{gap:12px}
+.server-shell.no-right .mini-logo{width:39px;height:43px;flex:none;display:block;border:0;border-radius:0;background:transparent url('/ComplexoVertical–Branco.png') center/contain no-repeat;color:transparent;font-size:0;line-height:0}
+.server-shell.no-right .sidebar-title strong{letter-spacing:.06em}
+
+@media(max-width:680px){.cpx-home-logo{width:164px;height:42px}.cpx-home-nav{align-items:center}.server-shell.no-right .mini-logo{width:35px;height:39px}}
+@media(max-width:460px){.cpx-home-logo{width:148px;height:38px}}
