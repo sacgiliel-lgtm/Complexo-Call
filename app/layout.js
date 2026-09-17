@@ -5,6 +5,7 @@ import './cpx-identity.css';
 import './complexo-brand.css';
 import CpxPalette from '../components/CpxPalette';
 import ChannelSync from '../components/ChannelSync';
+import AdminParticipantMover from '../components/AdminParticipantMover';
 
 export const metadata = {
   title: 'CPX Call',
@@ -19,7 +20,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="pt-BR">
-      <body><CpxPalette /><ChannelSync />{children}</body>
+      <body><CpxPalette /><ChannelSync /><AdminParticipantMover />{children}</body>
     </html>
   );
 }
