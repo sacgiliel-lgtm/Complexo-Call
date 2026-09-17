@@ -1,21 +1,34 @@
 import { AccessToken } from 'livekit-server-sdk';
 import { createClient } from '@supabase/supabase-js';
+import { verifyGuestTicket } from '../../../lib/guestTicket';
+import { limitarTaxa } from '../../../lib/rateLimit';
+
+// Mantenha esta lista em sincronia com `canaisDeVoz` em app/servidor/page.js.
+// Serve como whitelist: ninguém gera token pra uma "sala" inventada.
+const SALAS_VALIDAS = ['Geral', 'Jogos', 'Reunião Dev'];
+
+// Convidados (entraram via código de convite) só podem acessar estas salas.
+const SALAS_CONVIDADO = ['Geral'];
 
 // --- FUNÇÃO DE LOG DE AUDITORIA AVANÇADA PARA O DISCORD ---
-async function enviarLogAuditoria(usuario, sala, cargo, ip, userAgent) {
+async function enviarLogAuditoria(usuario, sala, cargo, ip, userAgent, bloqueado = false) {
   const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
   if (!webhookUrl) return;
 
   // Cores dinâmicas para o Embed baseadas no cargo (Rosa para Admin, Roxo para Membro, Laranja para Convidado)
   let corEmbed = 10158312; // Roxo padrão (Membro)
   let badgeCargo = "Membro Comum";
-  
+
   if (cargo === 'admin') {
     corEmbed = 15204456; // Rosa Neon (Admin)
     badgeCargo = "👑 Administrador (Acesso Total)";
   } else if (cargo === 'convidado') {
     corEmbed = 16753920; // Laranja/Amarelo (Convidado)
     badgeCargo = "🎫 Convidado (Restrito)";
+  }
+
+  if (bloqueado) {
+    corEmbed = 14431557; // Vermelho — tentativa bloqueada
   }
 
   // Identifica de forma simples o dispositivo pelo User-Agent
@@ -29,8 +42,12 @@ async function enviarLogAuditoria(usuario, sala, cargo, ip, userAgent) {
   }
 
   const embed = {
-    title: "🛡️ AUDITORIA DE ACESSO • COMPLEXO",
-    description: `Uma tentativa de conexão e geração de token foi processada pelo sistema.`,
+    title: bloqueado
+      ? "🚫 TENTATIVA DE ACESSO BLOQUEADA • COMPLEXO"
+      : "🛡️ AUDITORIA DE ACESSO • COMPLEXO",
+    description: bloqueado
+      ? "Uma tentativa de entrar em uma sala não autorizada foi bloqueada pelo sistema."
+      : "Uma tentativa de conexão e geração de token foi processada pelo sistema.",
     color: corEmbed,
     fields: [
       { name: "👤 Usuário", value: `\`${usuario}\``, inline: true },
@@ -56,56 +73,94 @@ async function enviarLogAuditoria(usuario, sala, cargo, ip, userAgent) {
 }
 
 // --- ROTA DE GERAÇÃO DE TOKEN & AUDITORIA ---
+// Agora exige uma credencial de verdade — sessão do Supabase (membro/admin)
+// OU um ticket de convidado assinado (obtido em /api/validate-invite).
+// O `username` e o `cargo` nunca mais vêm de query params do cliente.
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const room = searchParams.get('room');
-  const username = searchParams.get('username');
 
-  // Captura metadados de rede e do navegador para auditoria
   const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip');
   const userAgent = request.headers.get('user-agent');
 
-  if (!room || !username) {
-    return Response.json({ error: 'Faltando room ou username' }, { status: 400 });
+  if (!room) {
+    return Response.json({ error: 'Faltando room' }, { status: 400 });
   }
 
+  if (!SALAS_VALIDAS.includes(room)) {
+    return Response.json({ error: 'Sala inexistente' }, { status: 400 });
+  }
+
+  // Rate limit por IP — 10 gerações de token por minuto já é generoso pra uso normal
+  const { permitido } = limitarTaxa(`token:${ip || 'desconhecido'}`, { maxRequisicoes: 10, janelaMs: 60 * 1000 });
+  if (!permitido) {
+    return Response.json({ error: 'Muitas tentativas. Aguarde um instante e tente de novo.' }, { status: 429 });
+  }
+
+  const authHeader = request.headers.get('authorization');
+  const guestTicketHeader = request.headers.get('x-guest-ticket');
+
+  let username = null;
+  let cargo = null;
+
   try {
-    // 1. Instancia o Supabase para checar a integridade da permissão
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    );
-    
-    // 2. Valida o cargo real do usuário no banco
-    let cargo = 'convidado';
-    const { data: perfil } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('username', username)
-      .single();
-      
-    if (perfil) {
-      cargo = perfil.role;
+    if (authHeader?.startsWith('Bearer ')) {
+      // --- Caminho 1: membro/admin com sessão real do Supabase ---
+      const accessToken = authHeader.replace('Bearer ', '');
+
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      );
+
+      const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
+
+      if (authError || !user) {
+        return Response.json({ error: 'Sessão inválida ou expirada.' }, { status: 401 });
+      }
+
+      const { data: perfil } = await supabase
+        .from('profiles')
+        .select('username, role')
+        .eq('id', user.id)
+        .single();
+
+      username = perfil?.username || user.email?.split('@')[0] || `User_${user.id.slice(0, 6)}`;
+      cargo = perfil?.role || 'membro';
+
+    } else if (guestTicketHeader) {
+      // --- Caminho 2: convidado com passe emitido após validar um convite ---
+      const payload = verifyGuestTicket(guestTicketHeader);
+
+      if (!payload) {
+        return Response.json({ error: 'Convite expirado ou inválido. Valide o código novamente.' }, { status: 401 });
+      }
+
+      username = payload.username;
+      cargo = 'convidado';
+
+    } else {
+      return Response.json({ error: 'Não autenticado. Faça login ou use um convite.' }, { status: 401 });
     }
 
-    // 3. Validação de Segurança Extra para Convidados
-    // Se for convidado, garante via código que ele só pode acessar a sala de espera/recepção
-    if (cargo === 'convidado' && room !== 'Recepção (Convidados)' && room !== 'Geral') {
-      // Opcional: Você pode bloquear ou registrar uma tentativa suspeita aqui no futuro
+    // --- Autorização: convidado só entra nas salas liberadas pra ele ---
+    if (cargo === 'convidado' && !SALAS_CONVIDADO.includes(room)) {
+      enviarLogAuditoria(username, room, cargo, ip, userAgent, true);
+      return Response.json({ error: 'Convidados não podem entrar nesta sala.' }, { status: 403 });
     }
 
-    // 4. Gera o Token do LiveKit
+    // --- Gera o Token do LiveKit ---
     const at = new AccessToken(
       process.env.LIVEKIT_API_KEY,
       process.env.LIVEKIT_API_SECRET,
       { identity: username }
     );
-    
-    at.addGrant({ roomJoin: true, room: room });
+
+    at.addGrant({ roomJoin: true, room });
     const token = await at.toJwt();
 
-    // 5. Dispara o log detalhado para o canal do Discord em segundo plano
-    enviarLogAuditoria(username, room, cargo, ip, userAgent);
+    // Dispara o log detalhado para o canal do Discord em segundo plano
+    enviarLogAuditoria(username, room, cargo, ip, userAgent, false);
 
     return Response.json({ token });
 
