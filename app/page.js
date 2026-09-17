@@ -1,6 +1,140 @@
 'use client';
-import { useState } from 'react';
+
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
-const supabase=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-export default function Home(){const[mode,setMode]=useState('login'),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[code,setCode]=useState(''),[loading,setLoading]=useState(false),[error,setError]=useState('');const router=useRouter();const input={padding:15,borderRadius:6,border:'1px solid #9b00e8',background:'rgba(0,0,0,.6)',color:'#fff',outline:'none',fontSize:16};const button={padding:15,borderRadius:6,border:0,background:'linear-gradient(90deg,#e80068,#9b00e8)',color:'#fff',fontWeight:900,fontSize:16,cursor:'pointer'};async function login(e){e.preventDefault();setLoading(true);setError('');const{data,error}=await supabase.auth.signInWithPassword({email,password});if(error){setError('E-mail ou senha inválidos.');setLoading(false);return}const{data:p}=await supabase.from('profiles').select('status').eq('id',data.user.id).single();if(!p||p.status==='suspenso'){await supabase.auth.signOut();setError('Esta conta está suspensa.');setLoading(false);return}router.push('/servidor')}async function invite(e){e.preventDefault();setLoading(true);setError('');try{const r=await fetch('/api/validate-invite',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:code.trim()})});const j=await r.json();if(!r.ok)throw new Error(j.error||'Convite inválido.');router.push('/servidor')}catch(err){setError(err.message)}finally{setLoading(false)}}return <main style={{height:'100vh',display:'grid',placeItems:'center',fontFamily:'sans-serif',background:'linear-gradient(135deg,#0a030d,#1a0822)',color:'#fff'}}><section style={{width:350,padding:40,borderRadius:12,background:'rgba(20,10,30,.85)',border:'2px solid #e80068',boxShadow:'0 0 30px rgba(232,0,104,.35)',textAlign:'center'}}><h1 style={{marginTop:0,textTransform:'uppercase',textShadow:'3px 3px #9b00e8'}}>Complexo</h1><div style={{display:'flex',marginBottom:25}}><button onClick={()=>{setMode('login');setError('')}} style={{flex:1,padding:10,background:'transparent',color:'#fff',border:0,borderBottom:mode==='login'?'3px solid #e80068':'3px solid transparent'}}>Membro</button><button onClick={()=>{setMode('invite');setError('')}} style={{flex:1,padding:10,background:'transparent',color:'#fff',border:0,borderBottom:mode==='invite'?'3px solid #e80068':'3px solid transparent'}}>Convite</button></div>{error&&<div style={{color:'#ff7b86',marginBottom:15}}>{error}</div>}{mode==='login'?<form onSubmit={login} style={{display:'flex',flexDirection:'column',gap:15}}><input style={input} type="email" placeholder="Seu e-mail" value={email} onChange={e=>setEmail(e.target.value)} required/><input style={input} type="password" placeholder="Sua senha" value={password} onChange={e=>setPassword(e.target.value)} required/><button disabled={loading} style={button}>{loading?'Entrando...':'Logar na Call'}</button></form>:<form onSubmit={invite} style={{display:'flex',flexDirection:'column',gap:15}}><input style={input} placeholder="Código do convite" value={code} onChange={e=>setCode(e.target.value.toUpperCase())} required/><button disabled={loading} style={button}>{loading?'Validando...':'Usar Convite'}</button></form>}</section></main>}
+import { Icon, Spinner } from '../components/ui';
+
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+
+export default function Home() {
+  const router = useRouter();
+  const [mode, setMode] = useState('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!mounted) return;
+      if (session) router.replace('/servidor');
+      else setLoading(false);
+    })();
+    return () => { mounted = false; };
+  }, [router]);
+
+  function changeMode(next) {
+    setMode(next);
+    setError('');
+    setNotice('');
+  }
+
+  async function login(event) {
+    event.preventDefault();
+    setSubmitting(true);
+    setError('');
+    setNotice('');
+    const { data, error: authError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    if (authError || !data.user) {
+      setError('E-mail ou senha inválidos. Confira os dados e tente novamente.');
+      setSubmitting(false);
+      return;
+    }
+    const { data: profile } = await supabase.from('profiles').select('status').eq('id', data.user.id).single();
+    if (!profile || profile.status === 'suspenso') {
+      await supabase.auth.signOut();
+      setError('Esta conta está suspensa ou não possui um perfil ativo.');
+      setSubmitting(false);
+      return;
+    }
+    router.push('/servidor');
+  }
+
+  async function invite(event) {
+    event.preventDefault();
+    if (!code.trim()) return;
+    setSubmitting(true);
+    setError('');
+    setNotice('');
+    try {
+      const response = await fetch('/api/validate-invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: code.trim() }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error || 'Convite inválido.');
+      setNotice('Convite validado. Entrando no CPX...');
+      router.push('/servidor');
+    } catch (inviteError) {
+      setError(inviteError.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (loading) return <main className="login-page"><Spinner label="Carregando CPX..." /></main>;
+
+  return (
+    <main className="login-page cpx-grid">
+      <div className="login-orb one" />
+      <div className="login-orb two" />
+      <section className="login-card">
+        <div className="brand-mark">
+          <div className="brand-logo">CPX</div>
+          <div className="brand-copy"><strong>CPX CALL</strong><span>Comunidade • voz • vídeo • equipe</span></div>
+        </div>
+
+        <h1 className="login-title">Entre na chamada.</h1>
+        <p className="login-subtitle">Acesse seu espaço no CPX ou use o convite recebido para entrar como convidado.</p>
+
+        <div className="auth-tabs">
+          <button className={`auth-tab ${mode === 'login' ? 'active' : ''}`} onClick={() => changeMode('login')}>Membro</button>
+          <button className={`auth-tab ${mode === 'invite' ? 'active' : ''}`} onClick={() => changeMode('invite')}>Convite</button>
+        </div>
+
+        {error && <div className="error-box" role="alert">{error}</div>}
+        {notice && <div className="success-box">{notice}</div>}
+
+        {mode === 'login' ? (
+          <form onSubmit={login} style={{ display: 'grid', gap: 15 }}>
+            <div className="field">
+              <label htmlFor="email">E-mail</label>
+              <input id="email" className="input" type="email" autoComplete="email" placeholder="voce@exemplo.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            </div>
+            <div className="field">
+              <label htmlFor="password">Senha</label>
+              <div className="input-wrap">
+                <input id="password" className="input" type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Sua senha" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
+                <button type="button" className="input-action" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}><Icon name={showPassword ? 'close' : 'settings'} size={17} /></button>
+              </div>
+            </div>
+            <button className="primary-btn button-full" disabled={submitting}>{submitting ? <Spinner label="Entrando..." /> : <><Icon name="phone" size={17} /> Entrar no CPX</>}</button>
+            <span className="helper">Sua sessão permanece ativa enquanto sua conta estiver autorizada.</span>
+          </form>
+        ) : (
+          <form onSubmit={invite} style={{ display: 'grid', gap: 15 }}>
+            <div className="field">
+              <label htmlFor="invite">Código do convite</label>
+              <input id="invite" className="input" inputMode="text" autoCapitalize="characters" autoComplete="off" placeholder="CPX-XXXXXXXXXX" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} required />
+              <span className="helper">O convite é temporário e pode ter prazo de validade definido pelo administrador.</span>
+            </div>
+            <button className="primary-btn button-full" disabled={submitting}>{submitting ? <Spinner label="Validando..." /> : <><Icon name="shield" size={17} /> Usar convite</>}</button>
+          </form>
+        )}
+
+        <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+          <span className="helper">CPX Call</span>
+          <span className="helper">Segurança • acesso controlado</span>
+        </div>
+      </section>
+    </main>
+  );
+}
