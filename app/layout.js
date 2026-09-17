@@ -1,4 +1,5 @@
 import './globals.css';
+import './cpx-extra.css';
 
 export const metadata = {
   title: 'CPX Call',
