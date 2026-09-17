@@ -55,9 +55,12 @@ export default function Home() {
         return;
       }
 
-      // Sucesso! Convite queimado. Entra como Visitante.
-      const username = 'Visitante_' + codigo.trim();
-      router.push(`/servidor?user=${encodeURIComponent(username)}`);
+      // Sucesso! Convite queimado. Guarda o passe assinado — é ele que o
+      // /api/token vai exigir pra liberar a sala (não basta mais só o nome).
+      sessionStorage.setItem('convidadoTicket', result.ticket);
+      sessionStorage.setItem('convidadoUsername', result.username);
+
+      router.push(`/servidor?user=${encodeURIComponent(result.username)}`);
       
     } catch (err) {
       alert('Erro de conexão com o servidor.');
