@@ -16,10 +16,12 @@ export default function ServidorPage() {
   const [user, setUser] = useState(null);
   const [cred, setCred] = useState(null);
   const [channels, setChannels] = useState([]);
+  const [channelParticipants, setChannelParticipants] = useState({});
   const [active, setActive] = useState(null);
   const [token, setToken] = useState('');
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
+  const [movingParticipant, setMovingParticipant] = useState(false);
   const [maintenance, setMaintenance] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
@@ -29,6 +31,9 @@ export default function ServidorPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
+  const [moveParticipantOpen, setMoveParticipantOpen] = useState(false);
+  const [moveSelection, setMoveSelection] = useState(null);
+  const [moveTarget, setMoveTarget] = useState('');
   const [profileName, setProfileName] = useState('');
   const [presence, setPresence] = useState('online');
   const [theme, setTheme] = useState('cpx');
@@ -79,7 +84,7 @@ export default function ServidorPage() {
           const { data: profile } = await supabase.from('profiles').select('username,role,status,presence_status').eq('id', session.user.id).single();
           if (!profile || profile.status === 'suspenso') { await supabase.auth.signOut(); router.replace('/'); return; }
           const name = profile.username || session.user.email?.split('@')[0] || 'Membro';
-          setUser({ username: name, role: profile.role || 'membro', type: 'member' });
+          setUser({ username: name, role: profile.role || 'membro', type: 'member', identity: session.user.id });
           setProfileName(name);
           setPresence(profile.presence_status || 'online');
           setCred({ type: 'session', value: session.access_token });
@@ -87,7 +92,7 @@ export default function ServidorPage() {
           const response = await fetch('/api/guest/session', { cache: 'no-store' });
           const json = await response.json();
           if (!response.ok) { router.replace('/'); return; }
-          setUser({ username: json.username, role: 'convidado', type: 'guest' });
+          setUser({ username: json.username, role: 'convidado', type: 'guest', identity: `guest:${json.jti || ''}` });
           setProfileName(json.username || 'Convidado');
           setPresence('online');
           setCred({ type: 'guest' });
@@ -114,6 +119,26 @@ export default function ServidorPage() {
     loadChannels();
     const interval = window.setInterval(loadChannels, 20000);
     return () => { mounted = false; window.clearInterval(interval); };
+  }, [cred]);
+
+  useEffect(() => {
+    if (!cred) return;
+    let mounted = true;
+    async function loadChannelParticipants() {
+      const headers = cred.type === 'session' ? { Authorization: `Bearer ${cred.value}` } : {};
+      try {
+        const response = await fetch('/api/channels/presence', { headers, cache: 'no-store' });
+        const json = await response.json();
+        if (!mounted) return;
+        if (response.status === 503) { setChannelParticipants({}); return; }
+        if (!response.ok) return;
+        setChannelParticipants(json.participants || {});
+      } catch {}
+    }
+    loadChannelParticipants();
+    const interval = window.setInterval(loadChannelParticipants, 5000);
+    window.addEventListener('focus', loadChannelParticipants);
+    return () => { mounted = false; window.clearInterval(interval); window.removeEventListener('focus', loadChannelParticipants); };
   }, [cred]);
 
   useEffect(() => {
@@ -145,6 +170,47 @@ export default function ServidorPage() {
     finally { setConnecting(false); setSidebarOpen(false); }
   }
   function disconnect() { setActive(null); setToken(''); setMessages([]); setMessageText(''); setRightOpen(false); }
+
+  function openMoveParticipant(participant, sourceRoom) {
+    if (user?.type !== 'member') return;
+    if (!participant?.identity || participant.identity === user.identity) return pushToast({ type: 'info', title: 'Movimentação', message: 'Selecione outro participante para movimentar.' });
+    const destinations = channels.filter((channel) => channel.name !== sourceRoom);
+    if (!destinations.length) return pushToast({ type: 'info', title: 'Movimentação', message: 'Não existe outra call ativa para este participante.' });
+    setMoveSelection({ identity: participant.identity, name: participant.name || participant.identity, sourceRoom });
+    setMoveTarget(destinations[0].name);
+    setMoveParticipantOpen(true);
+  }
+
+  async function moveSelectedParticipant() {
+    if (!moveSelection || !moveTarget || movingParticipant || !cred || cred.type !== 'session') return;
+    setMovingParticipant(true);
+    try {
+      const response = await fetch('/api/admin/participants', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cred.value}` },
+        body: JSON.stringify({ sourceRoom: moveSelection.sourceRoom, destinationRoom: moveTarget, identity: moveSelection.identity }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error || 'Não foi possível mover o participante.');
+      const targetChannel = channels.find((channel) => channel.name === moveTarget);
+      setMoveParticipantOpen(false);
+      setMoveSelection(null);
+      setMoveTarget('');
+      pushToast({ type: 'success', title: 'Participante movido', message: `${moveSelection.name} foi movido de #${moveSelection.sourceRoom} para #${moveTarget}.` });
+      if (targetChannel) {
+        setChannelParticipants((current) => {
+          const next = { ...current };
+          next[moveSelection.sourceRoom] = (next[moveSelection.sourceRoom] || []).filter((participant) => participant.identity !== moveSelection.identity);
+          next[moveTarget] = [...(next[moveTarget] || []).filter((participant) => participant.identity !== moveSelection.identity), { identity: moveSelection.identity, name: moveSelection.name, role: 'membro' }];
+          return next;
+        });
+      }
+    } catch (error) {
+      pushToast({ type: 'error', title: 'Movimentação', message: error.message || 'Não foi possível mover o participante.' });
+    } finally {
+      setMovingParticipant(false);
+    }
+  }
 
   async function loadMessages(channelId, silent = false) {
     if (!channelId || !cred) return;
@@ -198,7 +264,31 @@ export default function ServidorPage() {
     <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
       <div className="sidebar-head"><div className="sidebar-brand"><div className="mini-logo">CPX</div><div className="sidebar-title"><strong>CPX CALL</strong><span>Comunidade de voz e vídeo</span></div></div><button className="icon-btn mobile-only" onClick={() => setSidebarOpen(false)} aria-label="Fechar menu"><Icon name="close" /></button></div>
       {maintenance && <div className="maintenance-banner"><b>Modo manutenção</b><br />Novos acessos estão temporariamente bloqueados.</div>}
-      <div className="sidebar-scroll">{Object.entries(groupedChannels).map(([category, items]) => <div className="side-section" key={category}><div className="side-section-title">{category}</div>{items.map((channel) => <button key={channel.id} className={`channel-item ${active?.id === channel.id ? 'active' : ''}`} title={channel.description || channel.name} onClick={() => connect(channel)}><span className="channel-icon">{channel.icon === 'chat' ? <Icon name="chat" size={15} /> : <Icon name="phone" size={15} />}</span><span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{channel.name}</span>{active?.id === channel.id && <span className="channel-count">●</span>}</button>)}</div>)}{!Object.keys(groupedChannels).length && <EmptyState icon="search" title="Nenhum canal" description={maintenance ? 'O servidor está em manutenção.' : 'Nenhum canal corresponde à sua busca.'} />}</div>
+      <div className="sidebar-scroll">
+        {Object.entries(groupedChannels).map(([category, items]) => <div className="side-section" key={category}>
+          <div className="side-section-title">{category}</div>
+          {items.map((channel) => {
+            const liveMembers = channelParticipants[channel.name] || [];
+            return <div className="channel-tree" key={channel.id}>
+              <button className={`channel-item ${active?.id === channel.id ? 'active' : ''}`} title={channel.description || channel.name} onClick={() => connect(channel)}>
+                <span className="channel-icon">{channel.icon === 'chat' ? <Icon name="chat" size={15} /> : <Icon name="phone" size={15} />}</span>
+                <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{channel.name}</span>
+                {liveMembers.length > 0 && <span className="channel-count">{liveMembers.length}</span>}
+              </button>
+              {liveMembers.length > 0 && <div className="channel-members" aria-label={`Participantes em #${channel.name}`}>
+                {liveMembers.slice(0, 30).map((participant) => <button key={participant.identity} type="button" className="channel-member" onClick={() => openMoveParticipant(participant, channel.name)} disabled={user?.type !== 'member'} title={user?.type === 'member' ? `Mover ${participant.name} para outra call` : participant.name}>
+                  <span className="member-rail" />
+                  <Avatar name={participant.name} size="sm" status="online" />
+                  <span className="channel-member-name">{participant.name}{participant.identity === user?.identity ? ' (você)' : ''}</span>
+                  {participant.isSpeaking && <span className="channel-member-speaking">falando</span>}
+                </button>)}
+                {liveMembers.length > 30 && <span className="channel-member-more">+ {liveMembers.length - 30} participantes</span>}
+              </div>}
+            </div>;
+          })}
+        </div>)}
+        {!Object.keys(groupedChannels).length && <EmptyState icon="search" title="Nenhum canal" description={maintenance ? 'O servidor está em manutenção.' : 'Nenhum canal corresponde à sua busca.'} />}
+      </div>
       <div className="sidebar-user">
         {profileOpen && <div className="profile-menu"><div className="menu-label">Status</div><button onClick={() => setPresence('online')}><i className="presence-dot" /> Online</button><button onClick={() => setPresence('away')}><i className="presence-dot away" /> Ausente</button><button onClick={() => setPresence('busy')}><i className="presence-dot busy" /> Não perturbe</button><div className="menu-divider" /><button onClick={() => { setProfileEditorOpen(true); setProfileOpen(false); }} disabled={user?.type === 'guest'}><Icon name="users" size={15} /> Meu perfil</button><button onClick={() => { setSettingsOpen(true); setProfileOpen(false); }}><Icon name="settings" size={15} /> Preferências</button>{user?.role === 'admin' && <button onClick={() => router.push('/admin')}><Icon name="shield" size={15} /> Centro de comando</button>}<button onClick={logout}><Icon name="logout" size={15} /> Encerrar sessão</button></div>}
         <div className="user-card"><Avatar name={user?.username} size="md" status={presence} /><div className="user-meta"><strong>{user?.username}</strong><span>{user?.role === 'admin' ? 'Administrador' : user?.role === 'convidado' ? 'Convidado' : 'Membro'}</span></div><div className="user-actions"><button className="icon-btn" onClick={() => setProfileOpen((value) => !value)} aria-label="Abrir menu do perfil"><Icon name="settings" size={16} /></button></div></div>
@@ -210,6 +300,15 @@ export default function ServidorPage() {
       {connecting && <div className="call-loading"><Spinner label="Estabelecendo conexão segura..." /></div>}
       {!active || !token ? <div className="main-content"><section className="call-area"><div className="call-empty"><div className="empty-card"><div className="empty-icon"><Icon name="phone" size={28} /></div><h2 style={{ margin: '0 0 8px' }}>Seu espaço no CPX</h2><p style={{ color: 'var(--muted)', lineHeight: 1.6, fontSize: 13 }}>{maintenance ? 'O servidor está em manutenção. Usuários sem permissão de administrador não podem iniciar novas chamadas neste momento.' : 'Escolha um canal na lateral para entrar na chamada. Você poderá conversar por texto, usar câmera, compartilhar a tela e controlar seu áudio.'}</p><div style={{ marginTop: 17, display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}><Badge tone="purple">Voz</Badge><Badge tone="purple">Vídeo</Badge><Badge tone="purple">Chat</Badge><Badge tone="green">Acesso controlado</Badge></div></div></div></section></div> : <RoomExperience token={token} serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} channel={active} user={user} rightTab={rightTab} rightPanelOpen={rightOpen} onRightTab={handleRightTab} messages={messages} messageText={messageText} setMessageText={setMessageText} onSendMessage={sendMessage} onToast={pushToast} onDisconnect={disconnect} onModerate={moderate} participantFilter={rightTab === 'participants' ? search : ''} theme={theme === 'light' ? 'theme-light' : 'cpx'} />}
     </section>
+
+    <Modal open={moveParticipantOpen} title="Mover participante" onClose={() => { if (!movingParticipant) { setMoveParticipantOpen(false); setMoveSelection(null); } }} width={480}>
+      <div style={{ display: 'grid', gap: 14 }}>
+        {moveSelection && <div className="profile-identity"><Avatar name={moveSelection.name} size="lg" status="online" /><div><strong>{moveSelection.name}</strong><span>Atual: #{moveSelection.sourceRoom}</span></div></div>}
+        <div className="field"><label>Mover para outra call</label><select className="input" value={moveTarget} onChange={(event) => setMoveTarget(event.target.value)} disabled={movingParticipant}>{channels.filter((channel) => channel.name !== moveSelection?.sourceRoom).map((channel) => <option key={channel.id} value={channel.name}># {channel.name}</option>)}</select></div>
+        <span className="helper">O participante será transferido da call atual para a call escolhida.</span>
+        <div className="modal-actions"><button type="button" className="ghost-btn" onClick={() => { setMoveParticipantOpen(false); setMoveSelection(null); }} disabled={movingParticipant}>Cancelar</button><button type="button" className="primary-btn" onClick={moveSelectedParticipant} disabled={movingParticipant || !moveSelection || !moveTarget}>{movingParticipant ? <Spinner label="Movendo..." /> : <><Icon name="chevron" size={15} /> Mover para call</>}</button></div>
+      </div>
+    </Modal>
 
     <Modal open={notificationsOpen} title="Notificações" onClose={() => setNotificationsOpen(false)}>
       <div className="notification-actions"><span className="helper">{notifications.length ? `${notifications.length} eventos recentes` : 'Nenhuma notificação recente'}</span>{notifications.length > 0 && <button className="ghost-btn button-sm" onClick={clearNotifications}>Limpar histórico</button>}</div>

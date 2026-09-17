@@ -3,6 +3,7 @@ import './cpx-extra.css';
 import './workspace-overrides.css';
 import './cpx-identity.css';
 import './complexo-brand.css';
+import './channel-members.css';
 import CpxPalette from '../components/CpxPalette';
 import ChannelSync from '../components/ChannelSync';
 
