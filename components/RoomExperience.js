@@ -1,12 +1,17 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Track } from 'livekit-client';
-import { LiveKitRoom, MediaDeviceMenu, RoomAudioRenderer, StartMediaButton, useConnectionQualityIndicator, useConnectionState, useDisconnectButton, useLocalParticipant, useParticipants, useTrackToggle, VideoConference } from '@livekit/components-react';
+import { ConnectionState, Track } from 'livekit-client';
+import { LiveKitRoom, MediaDeviceMenu, RoomAudioRenderer, StartMediaButton, useConnectionState, useLocalParticipant, useParticipants, useRoomContext, VideoConference } from '@livekit/components-react';
 import { Icon, Avatar, EmptyState, Badge } from './ui';
 
-function displayName(participant) { return participant.name || participant.identity?.replace(/^guest:/, '') || 'Participante'; }
-function participantRole(participant) { try { return JSON.parse(participant.metadata || '{}').role || 'membro'; } catch { return 'membro'; } }
+function displayName(participant) {
+  return participant.name || participant.identity?.replace(/^guest:/, '') || 'Participante';
+}
+
+function participantRole(participant) {
+  try { return JSON.parse(participant.metadata || '{}').role || 'membro'; } catch { return 'membro'; }
+}
 
 export function RoomExperience({ token, serverUrl, channel, user, rightTab, rightPanelOpen = true, onRightTab, messages, messageText, setMessageText, onSendMessage, onToast, onDisconnect, onModerate, participantFilter = '', theme = 'cpx' }) {
   return <LiveKitRoom token={token} serverUrl={serverUrl} connect audio video={false} onDisconnected={onDisconnect} onError={(error) => onToast?.({ type: 'error', title: 'Falha na chamada', message: error?.message || 'A conexão foi interrompida.' })}>
@@ -20,7 +25,6 @@ function RoomConnectedExperience({ channel, user, rightTab, rightPanelOpen, onRi
   const participants = useParticipants();
   const connectionState = useConnectionState();
   const { localParticipant } = useLocalParticipant();
-  const { quality } = useConnectionQualityIndicator();
   const [chatSearch, setChatSearch] = useState('');
   const previous = useRef(new Set());
   const mounted = useRef(false);
@@ -43,9 +47,9 @@ function RoomConnectedExperience({ channel, user, rightTab, rightPanelOpen, onRi
   const filtered = participantFilter.trim() ? sorted.filter((participant) => displayName(participant).toLowerCase().includes(participantFilter.toLowerCase())) : sorted;
   const filteredMessages = chatSearch.trim() ? messages.filter((message) => `${message.sender_name} ${message.content}`.toLowerCase().includes(chatSearch.toLowerCase())) : messages;
   const stateLabel = String(connectionState || '').toLowerCase();
-  const qualityValue = String(quality || '').toLowerCase();
-  const connectionLabel = stateLabel.includes('reconnecting') ? 'Reconectando...' : qualityValue.includes('poor') || qualityValue.includes('lost') ? 'Conexão ruim' : qualityValue.includes('good') ? 'Conexão boa' : stateLabel.includes('connected') ? 'Conexão excelente' : 'Conectando...';
-  const connectionTone = connectionLabel.includes('ruim') ? 'red' : connectionLabel.includes('boa') || connectionLabel.includes('Recon') ? 'yellow' : connectionLabel.includes('excelente') ? 'green' : 'neutral';
+  const qualityValue = String(localParticipant?.connectionQuality || '').toLowerCase();
+  const connectionLabel = stateLabel.includes('reconnecting') ? 'Reconectando...' : qualityValue.includes('poor') ? 'Conexão ruim' : qualityValue.includes('good') ? 'Conexão boa' : qualityValue.includes('excellent') ? 'Conexão excelente' : stateLabel.includes('connected') ? 'Conectado' : 'Conectando...';
+  const connectionTone = connectionLabel.includes('ruim') ? 'red' : connectionLabel.includes('boa') || connectionLabel.includes('Recon') ? 'yellow' : connectionLabel.includes('excelente') || connectionLabel === 'Conectado' ? 'green' : 'neutral';
 
   return <div className={`room-experience ${theme}`}>
     <section className="call-area">
@@ -68,21 +72,25 @@ function RoomConnectedExperience({ channel, user, rightTab, rightPanelOpen, onRi
 }
 
 function CallControls() {
-  const mic = useTrackToggle({ source: Track.Source.Microphone });
-  const camera = useTrackToggle({ source: Track.Source.Camera });
-  const screen = useTrackToggle({ source: Track.Source.ScreenShare });
-  const disconnect = useDisconnectButton({ stopTracks: true });
+  const { localParticipant, isMicrophoneEnabled, isCameraEnabled, isScreenShareEnabled } = useLocalParticipant();
+  const room = useRoomContext();
   useEffect(() => {
     const handler = (event) => {
       const target = event.target;
       if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
-      if (event.key.toLowerCase() === 'm') mic.toggle();
-      if (event.key.toLowerCase() === 'c') camera.toggle();
-      if (event.key.toLowerCase() === 's') screen.toggle();
-      if (event.key === 'Escape') disconnect.buttonProps.onClick?.();
+      if (event.key.toLowerCase() === 'm') localParticipant?.setMicrophoneEnabled(!isMicrophoneEnabled).catch(() => {});
+      if (event.key.toLowerCase() === 'c') localParticipant?.setCameraEnabled(!isCameraEnabled).catch(() => {});
+      if (event.key.toLowerCase() === 's') localParticipant?.setScreenShareEnabled(!isScreenShareEnabled).catch(() => {});
+      if (event.key === 'Escape') room?.disconnect();
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [mic, camera, screen, disconnect]);
-  return <div className="call-toolbar"><button {...mic.buttonProps} className={`call-control ${mic.enabled ? '' : 'is-off'}`} title={mic.enabled ? 'Desativar microfone (M)' : 'Ativar microfone (M)'}><Icon name={mic.enabled ? 'mic' : 'close'} /></button><button {...camera.buttonProps} className={`call-control ${camera.enabled ? '' : 'is-off'}`} title={camera.enabled ? 'Desativar câmera (C)' : 'Ativar câmera (C)'}><Icon name={camera.enabled ? 'camera' : 'close'} /></button><button {...screen.buttonProps} className="call-control" title="Compartilhar tela (S)"><Icon name="monitor" /></button><MediaDeviceMenu kind="audioinput" className="call-control" title="Escolher microfone"><Icon name="settings" /></MediaDeviceMenu><button {...disconnect.buttonProps} className="call-control call-exit" title="Sair da call"><Icon name="phone" /></button></div>;
+  }, [localParticipant, isMicrophoneEnabled, isCameraEnabled, isScreenShareEnabled, room]);
+  return <div className="call-toolbar">
+    <button onClick={() => localParticipant?.setMicrophoneEnabled(!isMicrophoneEnabled)} className={`call-control ${isMicrophoneEnabled ? '' : 'is-off'}`} title={isMicrophoneEnabled ? 'Desativar microfone (M)' : 'Ativar microfone (M)'}><Icon name={isMicrophoneEnabled ? 'mic' : 'close'} /></button>
+    <button onClick={() => localParticipant?.setCameraEnabled(!isCameraEnabled)} className={`call-control ${isCameraEnabled ? '' : 'is-off'}`} title={isCameraEnabled ? 'Desativar câmera (C)' : 'Ativar câmera (C)'}><Icon name={isCameraEnabled ? 'camera' : 'close'} /></button>
+    <button onClick={() => localParticipant?.setScreenShareEnabled(!isScreenShareEnabled)} className={`call-control ${isScreenShareEnabled ? 'active-choice' : ''}`} title="Compartilhar tela (S)"><Icon name="monitor" /></button>
+    <MediaDeviceMenu kind="audioinput" className="call-control" title="Escolher microfone"><Icon name="settings" /></MediaDeviceMenu>
+    <button onClick={() => room?.disconnect()} className="call-control call-exit" title="Sair da call"><Icon name="phone" /></button>
+  </div>;
 }
