@@ -102,6 +102,38 @@ export async function POST(request) {
       return Response.json({ success: true });
     }
 
+    if (action === 'reorder-categories') {
+      const requested = Array.isArray(body.categoryOrder) ? body.categoryOrder.map((item) => String(item || '').trim().toUpperCase()).filter(Boolean) : [];
+      if (!requested.length) return Response.json({ error: 'Nenhuma categoria informada.' }, { status: 400 });
+
+      const { data: channels, error } = await admin.from('channels').select('id,name,category,sort_order,created_at').order('sort_order', { ascending: true }).order('created_at', { ascending: true });
+      if (error) throw error;
+
+      const categoryMap = new Map();
+      (channels || []).forEach((channel) => {
+        const category = String(channel.category || 'GERAL').trim().toUpperCase() || 'GERAL';
+        if (!categoryMap.has(category)) categoryMap.set(category, []);
+        categoryMap.get(category).push(channel);
+      });
+
+      const allCategories = [...categoryMap.keys()];
+      const orderedCategories = [...new Set(requested.filter((category) => categoryMap.has(category)))];
+      allCategories.forEach((category) => { if (!orderedCategories.includes(category)) orderedCategories.push(category); });
+
+      let nextOrder = 0;
+      for (const category of orderedCategories) {
+        const members = categoryMap.get(category) || [];
+        for (const channel of members) {
+          const { error: updateError } = await admin.from('channels').update({ sort_order: nextOrder }).eq('id', channel.id);
+          if (updateError) throw updateError;
+          nextOrder += 1;
+        }
+      }
+
+      await logActivity(admin, profile, 'category_reordered', orderedCategories.join(', '), `${orderedCategories.length} categoria(s)`);
+      return Response.json({ success: true, categoryOrder: orderedCategories });
+    }
+
     if (action === 'delete-channel') {
       const { data: target } = await admin.from('channels').select('name').eq('id', body.id).maybeSingle();
       const { error } = await admin.from('channels').delete().eq('id', body.id);
