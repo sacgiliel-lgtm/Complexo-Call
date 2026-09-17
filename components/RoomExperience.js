@@ -23,8 +23,8 @@ export function RoomExperience({ token, serverUrl, channel, user, rightTab, righ
 function RoomConnectedExperience({ channel, user, rightTab, rightPanelOpen, onRightTab, onCloseRight, messages, messageText, setMessageText, onSendMessage, onToast, onDisconnect, onModerate, participantFilter, theme }) {
   const participants = useParticipants();
   const connectionState = useConnectionState();
-  const quality = useConnectionQualityIndicator({ participant: useLocalParticipant().localParticipant });
   const { localParticipant } = useLocalParticipant();
+  const { quality } = useConnectionQualityIndicator({ participant: localParticipant });
   const previous = useRef(new Set());
   const mounted = useRef(false);
 
@@ -45,7 +45,7 @@ function RoomConnectedExperience({ channel, user, rightTab, rightPanelOpen, onRi
   const sorted = [...participants].sort((a, b) => (a.identity === localParticipant?.identity ? -1 : b.identity === localParticipant?.identity ? 1 : displayName(a).localeCompare(displayName(b))));
   const filtered = participantFilter.trim() ? sorted.filter((participant) => displayName(participant).toLowerCase().includes(participantFilter.toLowerCase())) : sorted;
   const stateLabel = String(connectionState || '').toLowerCase();
-  const qualityValue = String(quality?.quality || quality?.connectionQuality || '').toLowerCase();
+  const qualityValue = String(quality || '').toLowerCase();
   const connectionLabel = stateLabel.includes('reconnecting') ? 'Reconectando...' : qualityValue.includes('poor') || qualityValue.includes('lost') ? 'Conexão ruim' : qualityValue.includes('good') ? 'Conexão boa' : stateLabel.includes('connected') ? 'Conexão excelente' : 'Conectando...';
   const connectionTone = connectionLabel.includes('ruim') ? 'red' : connectionLabel.includes('boa') || connectionLabel.includes('Recon') ? 'yellow' : connectionLabel.includes('excelente') ? 'green' : 'neutral';
 
