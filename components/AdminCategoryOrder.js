@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { createClient } from '@supabase/supabase-js';
 import { Modal, Spinner } from './ui';
+
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
 export default function AdminCategoryOrder() {
   const [visible, setVisible] = useState(false);
@@ -30,12 +33,16 @@ export default function AdminCategoryOrder() {
     return () => observer.disconnect();
   }, []);
 
-  async function loadCategories() {
+  async function loadCategories(currentSession = session) {
+    if (!currentSession?.access_token) {
+      setError('Sessão administrativa não encontrada.');
+      return;
+    }
     setLoading(true);
     setError('');
     setMessage('');
     try {
-      const response = await fetch('/api/admin/manage', { cache: 'no-store' });
+      const response = await fetch('/api/admin/manage', { headers: { Authorization: `Bearer ${currentSession.access_token}` }, cache: 'no-store' });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error || 'Não foi possível carregar as categorias.');
       const seen = new Set();
@@ -54,7 +61,10 @@ export default function AdminCategoryOrder() {
 
   async function openManager() {
     setOpen(true);
-    await loadCategories();
+    setError('');
+    const { data: { session: currentSession } } = await supabase.auth.getSession();
+    setSession(currentSession || null);
+    await loadCategories(currentSession);
   }
 
   function move(index, direction) {
@@ -99,17 +109,6 @@ export default function AdminCategoryOrder() {
     }
   }
 
-  useEffect(() => {
-    if (!visible) return undefined;
-    let active = true;
-    import('@supabase/supabase-js').then(({ createClient }) => {
-      if (!active) return;
-      const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-      supabase.auth.getSession().then(({ data }) => setSession(data.session || null));
-    });
-    return () => { active = false; };
-  }, [visible]);
-
   if (!mounted || !visible || window.location.pathname !== '/admin') return null;
 
   const content = (
@@ -150,7 +149,6 @@ export default function AdminCategoryOrder() {
           )}
 
           {message && <div className="helper" style={{ color: '#8df0b7' }}>{message}</div>}
-          {error && !loading && <div className="helper" style={{ color: '#ff9b9b' }}>{error}</div>}
 
           <div className="modal-actions">
             <button type="button" className="ghost-btn" disabled={!changed || saving} onClick={reset}>Desfazer alterações</button>
