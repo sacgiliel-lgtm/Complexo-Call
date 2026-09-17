@@ -14,8 +14,7 @@ set category = case
   when lower(name) like '%jogo%' then 'JOGOS'
   when lower(name) like '%reuni%' or lower(name) like '%dev%' then 'EQUIPE'
   else 'GERAL'
-end
-where category is null or category = '';
+end;
 
 create table if not exists public.channel_messages (
   id uuid primary key default gen_random_uuid(),
