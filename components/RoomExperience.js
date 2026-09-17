@@ -2,13 +2,12 @@
 
 import { useEffect, useRef } from 'react';
 import { Track } from 'livekit-client';
-import { LiveKitRoom, MediaDeviceMenu, RoomAudioRenderer, StartMediaButton, useConnectionState, useDisconnectButton, useLocalParticipant, useParticipants, useTrackToggle, VideoConference } from '@livekit/components-react';
-import { Icon, Avatar, EmptyState } from './ui';
+import { LiveKitRoom, MediaDeviceMenu, RoomAudioRenderer, StartMediaButton, useConnectionQualityIndicator, useConnectionState, useDisconnectButton, useLocalParticipant, useParticipants, useTrackToggle, VideoConference } from '@livekit/components-react';
+import { Icon, Avatar, EmptyState, Badge } from './ui';
 
 function displayName(participant) {
   return participant.name || participant.identity?.replace(/^guest:/, '') || 'Participante';
 }
-
 function participantRole(participant) {
   try { return JSON.parse(participant.metadata || '{}').role || 'membro'; } catch { return 'membro'; }
 }
@@ -24,6 +23,7 @@ export function RoomExperience({ token, serverUrl, channel, user, rightTab, righ
 function RoomConnectedExperience({ channel, user, rightTab, rightPanelOpen, onRightTab, onCloseRight, messages, messageText, setMessageText, onSendMessage, onToast, onDisconnect, onModerate, participantFilter, theme }) {
   const participants = useParticipants();
   const connectionState = useConnectionState();
+  const quality = useConnectionQualityIndicator({ participant: useLocalParticipant().localParticipant });
   const { localParticipant } = useLocalParticipant();
   const previous = useRef(new Set());
   const mounted = useRef(false);
@@ -45,14 +45,16 @@ function RoomConnectedExperience({ channel, user, rightTab, rightPanelOpen, onRi
   const sorted = [...participants].sort((a, b) => (a.identity === localParticipant?.identity ? -1 : b.identity === localParticipant?.identity ? 1 : displayName(a).localeCompare(displayName(b))));
   const filtered = participantFilter.trim() ? sorted.filter((participant) => displayName(participant).toLowerCase().includes(participantFilter.toLowerCase())) : sorted;
   const stateLabel = String(connectionState || '').toLowerCase();
-  const connectionLabel = stateLabel.includes('connected') ? 'Conectado' : stateLabel.includes('reconnecting') ? 'Reconectando...' : 'Conectando...';
-  const connectionTone = stateLabel.includes('connected') ? 'green' : stateLabel.includes('reconnecting') ? 'yellow' : 'neutral';
+  const qualityValue = String(quality?.quality || quality?.connectionQuality || '').toLowerCase();
+  const connectionLabel = stateLabel.includes('reconnecting') ? 'Reconectando...' : qualityValue.includes('poor') || qualityValue.includes('lost') ? 'Conexão ruim' : qualityValue.includes('good') ? 'Conexão boa' : stateLabel.includes('connected') ? 'Conexão excelente' : 'Conectando...';
+  const connectionTone = connectionLabel.includes('ruim') ? 'red' : connectionLabel.includes('boa') || connectionLabel.includes('Recon') ? 'yellow' : connectionLabel.includes('excelente') ? 'green' : 'neutral';
 
   return <div className={`room-experience ${theme}`}>
     <section className="call-area">
       <div className="call-stage cpx-video-conf"><VideoConference /></div>
-      <div className="call-status-chip"><span className={`presence-dot ${connectionTone === 'yellow' ? 'away' : ''}`} />{connectionLabel}</div>
+      <div className="call-status-chip"><span className={`presence-dot ${connectionTone === 'yellow' ? 'away' : connectionTone === 'red' ? 'busy' : ''}`} />{connectionLabel}</div>
       <div className="call-room-chip"><span>#</span>{channel.name}<small>{user.username}</small></div>
+      <div className="call-mini-stats"><Badge tone="purple">{participants.length} {participants.length === 1 ? 'pessoa' : 'pessoas'}</Badge>{channel.guest_access && <Badge tone="yellow">Convidados liberados</Badge>}</div>
       <CallControls />
       <div className="call-hint">Atalhos: <b>M</b> microfone · <b>C</b> câmera · <b>S</b> tela · <b>Esc</b> sair</div>
     </section>
