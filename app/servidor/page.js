@@ -79,46 +79,71 @@ function ServidorContent() {
   // Estados do Usuário
   const [username, setUsername] = useState(usernameUrl);
   const [cargo, setCargo] = useState('carregando'); // admin, membro ou convidado
-  
+  // Credencial real que vai autorizar a entrada na sala no servidor:
+  // { tipo: 'sessao', valor: access_token do Supabase } para membro/admin, ou
+  // { tipo: 'convidado', valor: ticket assinado } para quem entrou via convite.
+  const [credencial, setCredencial] = useState(null);
+
   // Estados da Call
   const canaisDeVoz = ['Geral', 'Jogos', 'Reunião Dev']; // No futuro, puxar do banco
   const [canalAtual, setCanalAtual] = useState(null);
   const [token, setToken] = useState('');
   const [conectando, setConectando] = useState(false);
 
-  // Busca o cargo do usuário assim que ele entra
+  // Busca a credencial e o cargo do usuário assim que ele entra.
+  // Se não houver nem sessão nem convite validado, não tem por que estar aqui.
   useEffect(() => {
     async function carregarPerfil() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (session) {
         const { data: perfil } = await supabase
           .from('profiles')
           .select('username, role')
-          .eq('id', user.id)
+          .eq('id', session.user.id)
           .single();
 
-        if (perfil) {
-          setUsername(perfil.username);
-          setCargo(perfil.role);
-        } else {
-          setCargo('membro'); // fallback
-        }
-      } else {
-        // Se for um visitante sem conta logada
+        setUsername(perfil?.username || session.user.email.split('@')[0]);
+        setCargo(perfil?.role || 'membro');
+        setCredencial({ tipo: 'sessao', valor: session.access_token });
+        return;
+      }
+
+      // Sem sessão: só é legítimo estar aqui com um passe de convidado válido
+      const ticket = sessionStorage.getItem('convidadoTicket');
+      const nomeConvidado = sessionStorage.getItem('convidadoUsername');
+
+      if (ticket) {
+        setUsername(nomeConvidado || usernameUrl);
         setCargo('convidado');
+        setCredencial({ tipo: 'convidado', valor: ticket });
+      } else {
+        // Ninguém logou e nenhum convite foi validado — de volta pra tela de entrada
+        router.push('/');
       }
     }
     carregarPerfil();
-  }, []);
+  }, [router, usernameUrl]);
 
   const conectarCanal = async (canal) => {
-    if (canalAtual === canal) return;
+    if (!credencial || canalAtual === canal) return;
     setConectando(true);
     setCanalAtual(canal);
-    setToken(''); 
+    setToken('');
     try {
-      const res = await fetch(`/api/token?room=${encodeURIComponent(canal)}&username=${encodeURIComponent(username)}`);
+      const headers = credencial.tipo === 'sessao'
+        ? { Authorization: `Bearer ${credencial.valor}` }
+        : { 'x-guest-ticket': credencial.valor };
+
+      const res = await fetch(`/api/token?room=${encodeURIComponent(canal)}`, { headers });
       const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.error || 'Não foi possível entrar nesta sala.');
+        setCanalAtual(null);
+        return;
+      }
+
       setToken(data.token);
     } catch (e) {
       console.error(e);
