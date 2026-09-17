@@ -2,6 +2,7 @@ import './globals.css';
 import './cpx-extra.css';
 import './workspace-overrides.css';
 import './cpx-identity.css';
+import './complexo-brand.css';
 import CpxPalette from '../components/CpxPalette';
 
 export const metadata = {
