@@ -1,5 +1,19 @@
-import { createClient } from '@supabase/supabase-js';
-import { getSupabaseAdmin } from '../../../lib/supabaseAdmin';
-import { getGuestTicketFromCookie, verifyGuestTicket } from '../../../lib/guestTicket';
+import { getRequestActor, actorResponse } from '../../../lib/requestAuth';
 
-export async function GET(request){try{const admin=getSupabaseAdmin();const auth=request.headers.get('authorization');const guestTicket=getGuestTicketFromCookie(request)||request.headers.get('x-guest-ticket');let role=null;if(auth?.startsWith('Bearer ')){const supabase=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,{auth:{persistSession:false}});const {data:{user},error}=await supabase.auth.getUser(auth.slice(7));if(error||!user)return Response.json({error:'Sessão inválida.'},{status:401});const {data:p}=await admin.from('profiles').select('role,status').eq('id',user.id).single();if(!p||p.status==='suspenso')return Response.json({error:'Acesso negado.'},{status:403});role=p.role||'membro';}else if(guestTicket){const payload=verifyGuestTicket(guestTicket);if(!payload)return Response.json({error:'Convite inválido.'},{status:401});const {data:g}=await admin.from('guest_sessions').select('expires_at,revoked_at,invite_id').eq('jti',payload.jti).maybeSingle();if(!g||g.revoked_at||String(g.invite_id)!==String(payload.inviteId)||new Date(g.expires_at).getTime()<=Date.now())return Response.json({error:'Convite expirado.'},{status:401});role='convidado';}else return Response.json({error:'Não autenticado.'},{status:401});const {data:settings}=await admin.from('server_settings').select('maintenance_mode').eq('id',1).maybeSingle();if(settings?.maintenance_mode&&role!=='admin')return Response.json({error:'Servidor em manutenção.'},{status:503});let query=admin.from('channels').select('id,name,is_waiting_room,guest_access').eq('is_active',true).order('sort_order',{ascending:true});if(role==='convidado')query=query.eq('guest_access',true);const {data,error}=await query;if(error)throw error;return Response.json({channels:data||[]});}catch(error){console.error('Channels API:',error);return Response.json({error:'Erro interno.'},{status:500});}}
+export async function GET(request) {
+  const actor = await getRequestActor(request);
+  if (!actor.ok) return actorResponse(actor);
+  try {
+    const { data: settings } = await actor.admin.from('server_settings').select('maintenance_mode').eq('id', 1).maybeSingle();
+    const maintenance = !!settings?.maintenance_mode;
+    if (maintenance && actor.role !== 'admin') return Response.json({ error: 'Servidor em manutenção.', maintenance: true }, { status: 503 });
+    let query = actor.admin.from('channels').select('id,name,is_waiting_room,guest_access,category,description,icon,sort_order,is_active').eq('is_active', true).order('sort_order', { ascending: true });
+    if (actor.role === 'convidado') query = query.eq('guest_access', true);
+    const { data: channels, error } = await query;
+    if (error) throw error;
+    return Response.json({ channels: channels || [], maintenance, actor: { username: actor.username, role: actor.role } });
+  } catch (error) {
+    console.error('Channels API:', error);
+    return Response.json({ error: 'Não foi possível carregar os canais.' }, { status: 500 });
+  }
+}

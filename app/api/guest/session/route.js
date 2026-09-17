@@ -1,5 +1,5 @@
-import { getSupabaseAdmin } from '../../../lib/supabaseAdmin';
-import { getGuestTicketFromCookie, verifyGuestTicket } from '../../../lib/guestTicket';
+import { getSupabaseAdmin } from '../../../../lib/supabaseAdmin';
+import { getGuestTicketFromCookie, verifyGuestTicket } from '../../../../lib/guestTicket';
 
 export async function GET(request) {
   try {
