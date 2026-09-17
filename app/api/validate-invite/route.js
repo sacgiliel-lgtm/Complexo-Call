@@ -1,39 +1,29 @@
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from '../../../lib/supabaseAdmin';
+import { createGuestTicket, DEFAULT_TTL_MS } from '../../../lib/guestTicket';
+import crypto from 'crypto';
+
+const hashCode = code => crypto.createHash('sha256').update(code).digest('hex');
+const normalize = code => String(code||'').trim().toUpperCase().replace(/[^A-Z0-9-]/g,'');
 
 export async function POST(request) {
   try {
-    const { code } = await request.json();
-
-    if (!code) {
-      return Response.json({ error: 'Código não fornecido' }, { status: 400 });
-    }
-
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    );
-
-    // Operação Atômica: Tenta dar UPDATE onde o código existe e ainda não foi usado (used = false).
-    // Se outra requisição tentar ao mesmo tempo, apenas a primeira conseguirá alterar.
-    const { data, error } = await supabase
-      .from('invites')
-      .update({ used: true })
-      .eq('code', code)
-      .eq('used', false)
-      .select();
-
-    if (error) {
-      console.error(error);
-      return Response.json({ error: 'Erro ao validar no banco de dados' }, { status: 500 });
-    }
-
-    if (!data || data.length === 0) {
-      return Response.json({ error: 'Código inválido, expirado ou já utilizado.' }, { status: 400 });
-    }
-
-    return Response.json({ success: true, invite: data[0] });
-
-  } catch (err) {
-    return Response.json({ error: 'Erro interno no servidor' }, { status: 500 });
-  }
+    const code=normalize((await request.json()).code);
+    if(!code||code.length<8||code.length>64)return Response.json({error:'Código de convite inválido.'},{status:400});
+    const admin=getSupabaseAdmin();
+    const {data:invite,error}=await admin.from('invites').select('id,guest_name,type,expires_at,used_at,revoked_at,code_hash').eq('code_hash',hashCode(code)).is('used_at',null).is('revoked_at',null).gt('expires_at',new Date().toISOString()).maybeSingle();
+    if(error)throw error;
+    if(!invite)return Response.json({error:'Código inválido, expirado, revogado ou já utilizado.'},{status:400});
+    const jti=crypto.randomUUID();
+    const expiresAt=new Date(Math.min(new Date(invite.expires_at).getTime(),Date.now()+DEFAULT_TTL_MS));
+    const username=String(invite.guest_name||`Convidado_${jti.slice(0,6)}`).trim().slice(0,32);
+    const {data:consumed,error:consumeError}=await admin.from('invites').update({used_at:new Date().toISOString()}).eq('id',invite.id).is('used_at',null).is('revoked_at',null).select('id').maybeSingle();
+    if(consumeError)throw consumeError;
+    if(!consumed)return Response.json({error:'Este convite acabou de ser utilizado. Gere outro convite.'},{status:409});
+    const {error:sessionError}=await admin.from('guest_sessions').insert({jti,invite_id:String(invite.id),username,expires_at:expiresAt.toISOString()});
+    if(sessionError)throw sessionError;
+    const ticket=createGuestTicket({jti,username,inviteId:String(invite.id),expiresAt});
+    const response=Response.json({success:true,username,expiresAt:expiresAt.toISOString()});
+    response.headers.set('Set-Cookie',`cpx_guest_ticket=${encodeURIComponent(ticket)}; Path=/; Max-Age=${Math.floor((expiresAt.getTime()-Date.now())/1000)}; HttpOnly; SameSite=Strict${process.env.NODE_ENV==='production'?'; Secure':''}`);
+    return response;
+  }catch(error){console.error('Validate invite:',error);return Response.json({error:'Erro interno ao validar o convite.'},{status:500});}
 }

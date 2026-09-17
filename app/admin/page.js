@@ -1,323 +1,99 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 
-// Inicializa o Supabase
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder';
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-// Paleta de cores do Complexo
-const cores = { 
-  bg: '#0a030d', panel: '#140a1e', text: '#ffffff', muted: '#a89db5', 
-  brandPink: '#e80068', brandPurple: '#9b00e8', red: '#da373c', green: '#23a559',
-  gradient: 'linear-gradient(90deg, #e80068 0%, #9b00e8 100%)'
-};
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+const colors = { bg:'#0a030d', panel:'#140a1e', text:'#fff', muted:'#a89db5', pink:'#e80068', purple:'#9b00e8', green:'#23a559', red:'#da373c' };
 
 export default function AdminDashboard() {
-  const [abaAtiva, setAbaAtiva] = useState('usuarios');
-  const [verificando, setVerificando] = useState(true);
-  const [mostrarCriarUsuario, setMostrarCriarUsuario] = useState(false);
   const router = useRouter();
-  const [novoEmail, setNovoEmail] = useState('');
-  const [novoUsername, setNovoUsername] = useState('');
-  const [novaSenha, setNovaSenha] = useState('');
-  const [novoRole, setNovoRole] = useState('membro');
-  const [loadingForm, setLoadingForm] = useState(false);
+  const [session, setSession] = useState(null);
+  const [tab, setTab] = useState('usuarios');
+  const [data, setData] = useState({ users:[], invites:[], channels:[], settings:{} });
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const [newUser, setNewUser] = useState({ email:'',username:'',password:'',role:'membro' });
+  const [guestName, setGuestName] = useState('');
+  const [inviteMinutes, setInviteMinutes] = useState(30);
+  const [newChannel, setNewChannel] = useState('');
 
-  const handleCriarUsuario = async (e) => {
-    e.preventDefault();
-    setLoadingForm(true);
+  async function load() {
+    setLoading(true); setMessage('');
+    const { data: { session: current } } = await supabase.auth.getSession();
+    if (!current) return router.replace('/');
+    const { data: profile } = await supabase.from('profiles').select('role,status').eq('id', current.user.id).single();
+    if (!profile || profile.role !== 'admin' || profile.status === 'suspenso') return router.replace('/servidor');
+    setSession(current);
+    const res = await fetch('/api/admin/manage', { headers:{ Authorization:`Bearer ${current.access_token}` } });
+    const json = await res.json();
+    if (!res.ok) { setMessage(json.error || 'Erro ao carregar painel.'); return; }
+    setData(json);
+    setLoading(false);
+  }
+  useEffect(() => { load(); }, []);
 
+  async function action(body) {
+    setBusy(true); setMessage('');
     try {
-      // Pega o token da sessão atual para provar para a API que você é admin
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        alert('Erro: Sessão não encontrada.');
-        setLoadingForm(false);
-        return;
-      }
-
-      const res = await fetch('/api/admin/create-user', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}` // Envia o crachá de admin
-        },
-        body: JSON.stringify({
-          email: novoEmail,
-          password: novaSenha,
-          username: novoUsername,
-          role: novoRole
-        })
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        alert(`Erro ao criar: ${data.error}`);
-      } else {
-        alert('✅ Sucesso! O usuário foi criado e já pode logar no Complexo.');
-        // Limpa o formulário
-        setNovoEmail('');
-        setNovoUsername('');
-        setNovaSenha('');
-        setMostrarCriarUsuario(false);
-      }
-    } catch (err) {
-      console.error(err);
-      alert('Erro de conexão ao tentar criar usuário.');
-    } finally {
-      setLoadingForm(false);
-    }
-  };
-
-  // Mocks de estado para a Interface (No futuro você conectará ao Supabase)
-  const [usuarios, setUsuarios] = useState([
-    { id: 1, username: 'Giliel', role: 'admin', status: 'ativo' },
-    { id: 2, username: 'Player2', role: 'membro', status: 'ativo' },
-    { id: 3, username: 'Visitante_CPX99', role: 'convidado', status: 'suspenso' }
-  ]);
-  
-  const [canais, setCanais] = useState([
-    { id: 1, name: 'Recepção (Convidados)', is_waiting_room: true },
-    { id: 2, name: 'Geral', is_waiting_room: false },
-    { id: 3, name: 'Reunião Dev', is_waiting_room: false },
-  ]);
-
-  useEffect(() => {
-    async function checarAcessoAdmin() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return router.push('/');
-
-      const { data: perfil, error } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-      if (error || !perfil || perfil.role !== 'admin') {
-        alert('Acesso negado. Apenas administradores.');
-        return router.push('/servidor');
-      }
-      setVerificando(false);
-    }
-    checarAcessoAdmin();
-  }, [router]);
-
-  // Estilizações base
-  const abaStyle = (ativa) => ({
-    padding: '12px 24px', cursor: 'pointer', fontWeight: 'bold', textTransform: 'uppercase',
-    background: ativa ? cores.gradient : 'transparent', color: ativa ? '#fff' : cores.muted,
-    border: ativa ? 'none' : `1px solid ${cores.brandPurple}`, borderRadius: '8px', transition: 'all 0.3s'
-  });
-
-  const cardStyle = {
-    background: 'rgba(20, 10, 30, 0.6)', border: `1px solid rgba(155,0,232,0.3)`,
-    borderRadius: '12px', padding: '25px', marginBottom: '20px', boxShadow: `0 0 20px rgba(155,0,232,0.1)`
-  };
-
-  const inputStyle = {
-    background: '#050108', color: '#fff', border: `1px solid ${cores.brandPurple}`, 
-    padding: '12px', borderRadius: '6px', width: '100%', outline: 'none'
-  };
-
-  if (verificando) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: cores.bg, color: cores.brandPink, fontWeight: 'bold' }}>
-        AUTENTICANDO COMANDO DO COMPLEXO...
-      </div>
-    );
+      const res = await fetch('/api/admin/manage', { method:'POST', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${session.access_token}` }, body:JSON.stringify(body) });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Operação não concluída.');
+      setMessage('Operação concluída com sucesso.');
+      await load();
+      return json;
+    } catch (e) { setMessage(e.message); } finally { setBusy(false); }
   }
 
-  return (
-    <div style={{ minHeight: '100vh', backgroundColor: cores.bg, color: cores.text, fontFamily: 'sans-serif', padding: '40px' }}>
-      
-      {/* HEADER DO PAINEL */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px', borderBottom: `1px solid rgba(232,0,104,0.3)`, paddingBottom: '20px' }}>
-        <div>
-          <h1 style={{ margin: 0, textTransform: 'uppercase', color: cores.brandPink, textShadow: `2px 2px 0px ${cores.brandPurple}` }}>Centro de Comando</h1>
-          <p style={{ margin: '5px 0 0 0', color: cores.muted }}>Complexo Engine v1.0 • Nível de Acesso: Máximo</p>
-        </div>
-        <button onClick={() => router.push('/servidor')} style={{ background: 'transparent', border: `2px solid ${cores.brandPink}`, color: cores.brandPink, padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.2s' }} onMouseOver={(e) => {e.target.style.background = cores.brandPink; e.target.style.color = '#fff'}} onMouseOut={(e) => {e.target.style.background = 'transparent'; e.target.style.color = cores.brandPink}}>
-          Voltar ao Servidor
-        </button>
-      </div>
+  async function createUser(e) {
+    e.preventDefault();
+    setBusy(true); setMessage('');
+    try {
+      const res = await fetch('/api/admin/create-user', { method:'POST', headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`}, body:JSON.stringify(newUser) });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Não foi possível criar o usuário.');
+      setNewUser({email:'',username:'',password:'',role:'membro'}); setMessage('Usuário criado.'); await load();
+    } catch(e) { setMessage(e.message); } finally { setBusy(false); }
+  }
 
-      {/* MENU DE NAVEGAÇÃO */}
-      <div style={{ display: 'flex', gap: '15px', marginBottom: '30px', flexWrap: 'wrap' }}>
-        <button style={abaStyle(abaAtiva === 'usuarios')} onClick={() => setAbaAtiva('usuarios')}>👥 Usuários</button>
-        <button style={abaStyle(abaAtiva === 'convites')} onClick={() => setAbaAtiva('convites')}>🎟️ Convites</button>
-        <button style={abaStyle(abaAtiva === 'canais')} onClick={() => setAbaAtiva('canais')}>🎙️ Calls</button>
-        <button style={abaStyle(abaAtiva === 'config')} onClick={() => setAbaAtiva('config')}>⚙️ Configurações</button>
-      </div>
+  async function generateInvite() {
+    const result = await action({ action:'create', guestName, expiresMinutes:inviteMinutes, count:1 });
+    if (result?.invites?.[0]?.code) {
+      await navigator.clipboard?.writeText(result.invites[0].code);
+      setMessage(`Convite criado: ${result.invites[0].code} (copiado para a área de transferência)`);
+    }
+  }
 
-      <div style={cardStyle}>
-        
-        {/* ================= ABA: USUÁRIOS ================= */}
-        {abaAtiva === 'usuarios' && (
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ color: cores.brandPurple, margin: 0 }}>Gerenciamento de Membros</h2>
-              <button onClick={() => setMostrarCriarUsuario(!mostrarCriarUsuario)} style={{ background: cores.gradient, color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
-                {mostrarCriarUsuario ? 'Cancelar' : '+ Novo Usuário'}
-              </button>
-            </div>
+  if (loading) return <main style={{minHeight:'100vh',background:colors.bg,color:colors.pink,display:'grid',placeItems:'center',fontFamily:'sans-serif'}}>CARREGANDO CENTRO DE COMANDO...</main>;
+  const input = {background:'#050108',color:'#fff',border:`1px solid ${colors.purple}`,padding:10,borderRadius:6,width:'100%',boxSizing:'border-box'};
+  const button = {background:`linear-gradient(90deg,${colors.pink},${colors.purple})`,color:'#fff',border:0,padding:'10px 16px',borderRadius:6,fontWeight:'bold',cursor:'pointer'};
+  return <main style={{minHeight:'100vh',background:colors.bg,color:colors.text,fontFamily:'sans-serif',padding:30}}>
+    <header style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:25,borderBottom:`1px solid ${colors.purple}`,paddingBottom:15}}>
+      <div><h1 style={{margin:0,color:colors.pink}}>Centro de Comando</h1><small style={{color:colors.muted}}>Gerenciamento real do CPX</small></div>
+      <button style={{...button,background:'transparent',border:`1px solid ${colors.pink}`}} onClick={()=>router.push('/servidor')}>Voltar</button>
+    </header>
+    <nav style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:20}}>{['usuarios','convites','canais','config'].map(t=><button key={t} onClick={()=>setTab(t)} style={{...button,background:tab===t?`linear-gradient(90deg,${colors.pink},${colors.purple})`:'transparent',border:`1px solid ${colors.purple}`}}>{t.toUpperCase()}</button>)}</nav>
+    {message && <div style={{background:'rgba(35,165,89,.12)',border:`1px solid ${colors.green}`,padding:12,borderRadius:6,marginBottom:15}}>{message}</div>}
 
-            {/* FORMULÁRIO DE CRIAR USUÁRIO */}
-            {mostrarCriarUsuario && (
-              <form onSubmit={handleCriarUsuario} style={{ background: 'rgba(0,0,0,0.4)', padding: '20px', borderRadius: '8px', border: `1px dashed ${cores.brandPink}`, marginBottom: '20px' }}>
-                <h3 style={{ marginTop: 0, color: cores.brandPink }}>Cadastrar Novo Acesso</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
-                  <input type="email" placeholder="E-mail" value={novoEmail} onChange={(e) => setNovoEmail(e.target.value)} style={inputStyle} required />
-                  <input type="text" placeholder="Nome de Usuário (Ex: Player3)" value={novoUsername} onChange={(e) => setNovoUsername(e.target.value)} style={inputStyle} required />
-                  <input type="password" placeholder="Senha Provisória" value={novaSenha} onChange={(e) => setNovaSenha(e.target.value)} style={inputStyle} required minLength={6} />
-                  <select value={novoRole} onChange={(e) => setNovoRole(e.target.value)} style={inputStyle}>
-                    <option value="membro">Cargo: Membro Comum</option>
-                    <option value="admin">Cargo: Administrador</option>
-                    <option value="convidado">Cargo: Convidado (Temporário)</option>
-                  </select>
-                </div>
-                <button type="submit" disabled={loadingForm} style={{ background: cores.green, color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '6px', fontWeight: 'bold', cursor: loadingForm ? 'not-allowed' : 'pointer', width: '100%', opacity: loadingForm ? 0.7 : 1 }}>
-                  {loadingForm ? 'Processando...' : 'Criar Conta e Liberar Acesso'}
-                </button>
-              </form>
-            )}
+    {tab==='usuarios' && <section style={{background:colors.panel,padding:20,borderRadius:10}}>
+      <h2>Usuários</h2>
+      <form onSubmit={createUser} style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:25}}>
+        <input style={input} placeholder="E-mail" type="email" required value={newUser.email} onChange={e=>setNewUser({...newUser,email:e.target.value})}/>
+        <input style={input} placeholder="Username" required value={newUser.username} onChange={e=>setNewUser({...newUser,username:e.target.value})}/>
+        <input style={input} placeholder="Senha (8+)" type="password" minLength={8} required value={newUser.password} onChange={e=>setNewUser({...newUser,password:e.target.value})}/>
+        <div style={{display:'flex',gap:8}}><select style={input} value={newUser.role} onChange={e=>setNewUser({...newUser,role:e.target.value})}><option value="membro">Membro</option><option value="admin">Admin</option></select><button disabled={busy} style={button}>Criar</button></div>
+      </form>
+      <table style={{width:'100%',borderCollapse:'collapse'}}><thead><tr><th>Usuário</th><th>Status</th><th>Cargo</th><th>Ações</th></tr></thead><tbody>{data.users.map(u=><tr key={u.id} style={{borderTop:'1px solid #30203a'}}><td style={{padding:10}}>{u.username}</td><td>{u.status}</td><td><select value={u.role} onChange={e=>action({action:'update-user',id:u.id,role:e.target.value,status:u.status})}><option value="membro">membro</option><option value="admin">admin</option></select></td><td><button onClick={()=>action({action:'update-user',id:u.id,role:u.role,status:u.status==='ativo'?'suspenso':'ativo'})} style={{...button,background:u.status==='ativo'?colors.red:colors.green}}>{u.status==='ativo'?'Suspender':'Reativar'}</button> <button onClick={()=>confirm(`Excluir ${u.username}?`)&&action({action:'delete-user',id:u.id})} style={{...button,background:colors.red}}>Excluir</button></td></tr>)}</tbody></table>
+    </section>}
 
-            {/* LISTA DE USUÁRIOS */}
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ borderBottom: `1px solid ${cores.muted}`, color: cores.muted, textTransform: 'uppercase', fontSize: '12px' }}>
-                    <th style={{ padding: '10px' }}>Usuário</th>
-                    <th style={{ padding: '10px' }}>Status</th>
-                    <th style={{ padding: '10px' }}>Cargo / Permissão</th>
-                    <th style={{ padding: '10px', textAlign: 'right' }}>Ações Administrativas</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {usuarios.map(u => (
-                    <tr key={u.id} style={{ borderBottom: `1px solid rgba(255,255,255,0.05)` }}>
-                      <td style={{ padding: '15px 10px', fontWeight: 'bold' }}>{u.username}</td>
-                      <td style={{ padding: '15px 10px' }}>
-                        <span style={{ background: u.status === 'ativo' ? 'rgba(35,165,89,0.2)' : 'rgba(218,55,60,0.2)', color: u.status === 'ativo' ? cores.green : cores.red, padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>
-                          {u.status.toUpperCase()}
-                        </span>
-                      </td>
-                      <td style={{ padding: '15px 10px' }}>
-                        <select defaultValue={u.role} style={{ background: '#000', color: '#fff', border: `1px solid ${cores.brandPurple}`, padding: '6px 10px', borderRadius: '4px' }}>
-                          <option value="admin">Admin</option>
-                          <option value="membro">Membro</option>
-                          <option value="convidado">Convidado</option>
-                        </select>
-                      </td>
-                      <td style={{ padding: '15px 10px', textAlign: 'right', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                        <button style={{ background: 'transparent', border: `1px solid ${cores.brandPurple}`, color: '#fff', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Salvar</button>
-                        <button style={{ background: 'transparent', border: `1px solid ${cores.muted}`, color: cores.muted, padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Suspender</button>
-                        <button style={{ background: 'transparent', border: `1px solid ${cores.red}`, color: cores.red, padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>X</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+    {tab==='convites' && <section style={{background:colors.panel,padding:20,borderRadius:10}}>
+      <h2>Convites</h2><div style={{display:'grid',gridTemplateColumns:'2fr 1fr auto',gap:8,marginBottom:20}}><input style={input} placeholder="Nome do convidado" value={guestName} onChange={e=>setGuestName(e.target.value)}/><input style={input} type="number" min={5} max={10080} value={inviteMinutes} onChange={e=>setInviteMinutes(e.target.value)}/><button disabled={busy} style={button} onClick={generateInvite}>Gerar código</button></div>
+      <table style={{width:'100%'}}><thead><tr><th>Final</th><th>Convidado</th><th>Expira</th><th>Status</th><th>Ação</th></tr></thead><tbody>{data.invites.map(i=><tr key={i.id}><td>{i.code_preview}</td><td>{i.guest_name}</td><td>{new Date(i.expires_at).toLocaleString('pt-BR')}</td><td>{i.used_at?'usado':i.revoked_at?'revogado':new Date(i.expires_at)<new Date()?'expirado':'ativo'}</td><td>{!i.used_at&&!i.revoked_at&&<button style={{...button,background:colors.red}} onClick={()=>action({action:'revoke-invite',id:i.id})}>Revogar</button>}</td></tr>)}</tbody></table>
+    </section>}
 
-        {/* ================= ABA: CONVITES ================= */}
-        {abaAtiva === 'convites' && (
-          <div>
-             <h2 style={{ color: cores.brandPurple, marginTop: 0 }}>Códigos de Acesso (Vouchers)</h2>
-             <p style={{color: cores.muted, marginBottom: '20px'}}>Gere códigos temporários para convidados ou passes diretos para novos membros.</p>
-             <div style={{ display: 'flex', gap: '15px', alignItems: 'center', background: 'rgba(0,0,0,0.3)', padding: '20px', borderRadius: '8px' }}>
-                <select style={inputStyle}>
-                  <option value="convidado">Tipo: Acesso de Convidado (1 Uso)</option>
-                  <option value="membro">Tipo: Passe de Membro Permamente</option>
-                </select>
-                <button style={{ background: cores.gradient, color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                  ⚡ Gerar Código
-                </button>
-             </div>
-          </div>
-        )}
+    {tab==='canais' && <section style={{background:colors.panel,padding:20,borderRadius:10}}><h2>Canais</h2><div style={{display:'flex',gap:8,marginBottom:20}}><input style={input} placeholder="Nome do canal" value={newChannel} onChange={e=>setNewChannel(e.target.value)}/><button style={button} onClick={async()=>{await action({action:'create-channel',name:newChannel});setNewChannel('')}}>Criar</button></div>{data.channels.map(c=><div key={c.id} style={{display:'flex',alignItems:'center',gap:12,borderTop:'1px solid #30203a',padding:'12px 0'}}><b style={{flex:1}}># {c.name}</b><label>Ativo <input type="checkbox" checked={c.is_active} onChange={e=>action({action:'update-channel',id:c.id,is_active:e.target.checked})}/></label><label>Convidado <input type="checkbox" checked={c.guest_access} onChange={e=>action({action:'update-channel',id:c.id,guest_access:e.target.checked})}/></label><button style={{...button,background:colors.red}} onClick={()=>confirm(`Excluir #${c.name}?`)&&action({action:'delete-channel',id:c.id})}>Excluir</button></div>)}</section>}
 
-        {/* ================= ABA: CANAIS / CALLS ================= */}
-        {abaAtiva === 'canais' && (
-          <div>
-            <h2 style={{ color: cores.brandPurple, marginTop: 0 }}>Gerenciamento de Calls</h2>
-            <div style={{ display: 'flex', gap: '15px', marginBottom: '25px', background: 'rgba(0,0,0,0.3)', padding: '20px', borderRadius: '8px' }}>
-                <input type="text" placeholder="Nome da nova call (Ex: Sala de Reunião B)" style={inputStyle} />
-                <button style={{ background: cores.brandPink, color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                  + Criar Call
-                </button>
-             </div>
-             
-             <h3 style={{ color: cores.muted, fontSize: '14px', textTransform: 'uppercase' }}>Canais Ativos</h3>
-             <ul style={{ listStyle: 'none', padding: 0 }}>
-               {canais.map(c => (
-                 <li key={c.id} style={{ background: '#050108', border: `1px solid rgba(155,0,232,0.2)`, margin: '10px 0', padding: '15px 20px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                   <div>
-                     <strong style={{color: cores.brandPink, marginRight: '8px', fontSize: '18px'}}>#</strong> 
-                     <span style={{fontSize: '16px'}}>{c.name}</span>
-                     {c.is_waiting_room && <span style={{fontSize: '11px', background: cores.brandPurple, padding: '2px 8px', borderRadius: '4px', marginLeft: '12px', fontWeight: 'bold'}}>SALA DE RECEPÇÃO</span>}
-                   </div>
-                   <div style={{display: 'flex', gap: '10px'}}>
-                     <button style={{ background: 'transparent', color: cores.muted, border: `1px solid ${cores.muted}`, padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Editar</button>
-                     <button style={{ background: cores.red, color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Apagar</button>
-                   </div>
-                 </li>
-               ))}
-             </ul>
-          </div>
-        )}
-
-        {/* ================= ABA: CONFIGURAÇÕES ================= */}
-        {abaAtiva === 'config' && (
-          <div>
-             <h2 style={{ color: cores.brandPurple, marginTop: 0 }}>Configurações do Servidor</h2>
-             
-             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                {/* Opção 1 */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#050108', padding: '20px', borderRadius: '8px', border: `1px solid rgba(232,0,104,0.2)` }}>
-                  <div>
-                    <h4 style={{ margin: '0 0 5px 0', color: '#fff' }}>Modo de Manutenção</h4>
-                    <p style={{ margin: 0, color: cores.muted, fontSize: '13px' }}>Bloqueia a entrada de qualquer usuário que não seja Admin.</p>
-                  </div>
-                  <input type="checkbox" style={{ width: '20px', height: '20px', accentColor: cores.brandPink }} />
-                </div>
-
-                {/* Opção 2 */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#050108', padding: '20px', borderRadius: '8px', border: `1px solid rgba(232,0,104,0.2)` }}>
-                  <div>
-                    <h4 style={{ margin: '0 0 5px 0', color: '#fff' }}>Logs no Discord</h4>
-                    <p style={{ margin: 0, color: cores.muted, fontSize: '13px' }}>Envia notificações de entrada, saída e criação de usuários para o Webhook.</p>
-                  </div>
-                  <input type="checkbox" defaultChecked style={{ width: '20px', height: '20px', accentColor: cores.brandPink }} />
-                </div>
-
-                {/* Opção 3 */}
-                <div style={{ background: '#050108', padding: '20px', borderRadius: '8px', border: `1px solid rgba(232,0,104,0.2)` }}>
-                  <h4 style={{ margin: '0 0 10px 0', color: '#fff' }}>Limite Global de Usuários em Call</h4>
-                  <p style={{ margin: '0 0 15px 0', color: cores.muted, fontSize: '13px' }}>Defina um limite de conexões simultâneas para poupar banda do LiveKit.</p>
-                  <select style={{...inputStyle, maxWidth: '200px'}}>
-                    <option value="50">Máximo: 50 usuários</option>
-                    <option value="100">Máximo: 100 usuários</option>
-                    <option value="ilimitado">Ilimitado</option>
-                  </select>
-                </div>
-             </div>
-             
-             <div style={{ marginTop: '30px', textAlign: 'right' }}>
-               <button style={{ background: cores.gradient, color: '#fff', border: 'none', padding: '12px 30px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '16px' }}>
-                 💾 Salvar Alterações Globais
-               </button>
-             </div>
-          </div>
-        )}
-
-      </div>
-    </div>
-  );
+    {tab==='config' && <section style={{background:colors.panel,padding:20,borderRadius:10}}><h2>Configurações</h2><label style={{display:'block',margin:'15px 0'}}>Modo manutenção <input type="checkbox" defaultChecked={data.settings.maintenance_mode} id="maintenance"/></label><label style={{display:'block',margin:'15px 0'}}>Logs Discord <input type="checkbox" defaultChecked={data.settings.discord_logs} id="discordLogs"/></label><label style={{display:'block',margin:'15px 0'}}>Limite global <select id="maxUsers" defaultValue={data.settings.max_users||'ilimitado'}><option value="50">50</option><option value="100">100</option><option value="200">200</option><option value="ilimitado">Ilimitado</option></select></label><button style={button} onClick={()=>action({action:'settings',maintenanceMode:document.getElementById('maintenance').checked,discordLogs:document.getElementById('discordLogs').checked,maxUsers:document.getElementById('maxUsers').value})}>Salvar</button></section>}
+  </main>;
 }
