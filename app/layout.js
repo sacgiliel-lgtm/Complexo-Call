@@ -1,6 +1,7 @@
 import './globals.css';
 import './cpx-extra.css';
 import './workspace-overrides.css';
+import './theme-light.css';
 
 export const metadata = {
   title: 'CPX Call',
