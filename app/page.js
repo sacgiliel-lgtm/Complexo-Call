@@ -22,6 +22,9 @@ export default function Home() {
   useEffect(() => {
     let mounted = true;
     (async () => {
+      const params = new URLSearchParams(window.location.search);
+      const inviteParam = params.get('invite');
+      if (inviteParam) { setCode(inviteParam.toUpperCase()); setMode('invite'); }
       const { data: { session } } = await supabase.auth.getSession();
       if (!mounted) return;
       if (session) router.replace('/servidor');
@@ -61,10 +64,9 @@ export default function Home() {
     {mode === 'login' ? <form onSubmit={login} style={{ display: 'grid', gap: 15 }}>
       <div className="field"><label htmlFor="email">E-mail</label><input id="email" className="input" type="email" autoComplete="email" placeholder="voce@exemplo.com" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
       <div className="field"><label htmlFor="password">Senha</label><div className="input-wrap"><input id="password" className="input" type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Sua senha" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} /><button type="button" className="input-action" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}><Icon name={showPassword ? 'eyeOff' : 'eye'} size={17} /></button></div></div>
-      <button className="primary-btn button-full" disabled={submitting}>{submitting ? <Spinner label="Entrando..." /> : <><Icon name="phone" size={17} /> Entrar no CPX</>}</button>
-      <span className="helper">Sua sessão permanece ativa enquanto sua conta estiver autorizada.</span>
+      <button className="primary-btn button-full" disabled={submitting}>{submitting ? <Spinner label="Entrando..." /> : <><Icon name="phone" size={17} /> Entrar no CPX</>}</button><span className="helper">Sua sessão permanece ativa enquanto sua conta estiver autorizada.</span>
     </form> : <form onSubmit={invite} style={{ display: 'grid', gap: 15 }}>
-      <div className="field"><label htmlFor="invite">Código do convite</label><input id="invite" className="input" inputMode="text" autoCapitalize="characters" autoComplete="off" placeholder="CPX-XXXXXXXXXX" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} required /><span className="helper">O convite é temporário e pode ter prazo de validade definido pelo administrador.</span></div>
+      <div className="field"><label htmlFor="invite">Código do convite</label><input id="invite" className="input" inputMode="text" autoCapitalize="characters" autoComplete="off" placeholder="CPX-XXXXXXXXXX" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} required /><span className="helper">Convite detectado automaticamente quando você entra por um link direto.</span></div>
       <button className="primary-btn button-full" disabled={submitting}>{submitting ? <Spinner label="Validando..." /> : <><Icon name="shield" size={17} /> Usar convite</>}</button>
     </form>}
     <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', gap: 12 }}><span className="helper">CPX Call</span><span className="helper">Segurança • acesso controlado</span></div>
