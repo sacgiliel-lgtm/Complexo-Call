@@ -143,17 +143,20 @@ export async function GET(request) {
     let online = 0;
     const service = livekitService();
     if (service && channels?.length) {
-      try {
-        const counts = await Promise.all(channels.filter((channel) => channel.is_active).map(async (channel) => (await service.listParticipants(channel.name)).length));
-        online = counts.reduce((sum, value) => sum + value, 0);
-      } catch (error) { console.error('Admin online stats:', error); }
+      const activeChannels = channels.filter((channel) => channel.is_active);
+      const counts = await Promise.all(activeChannels.map(async (channel) => {
+        try {
+          return (await service.listParticipants(channel.name))?.length ?? 0;
+        } catch (error) {
+          if (error?.status === 404 || error?.code === 'not_found' || error?.code === 'NOT_FOUND') return 0;
+          console.error(`Admin online stats (#${channel.name}):`, error);
+          return 0;
+        }
+      }));
+      online = counts.reduce((sum, value) => sum + value, 0);
     }
     const activeInvites = (invites || []).filter((invite) => !invite.used_at && !invite.revoked_at && new Date(invite.expires_at).getTime() > Date.now()).length;
-    return Response.json({
-      users: users || [], invites: invites || [], channels: channels || [], activities: activities || [],
-      settings: settings || { maintenance_mode: false, discord_logs: true, max_users: null },
-      stats: { users: users?.length || 0, online, channels: channels?.filter((channel) => channel.is_active).length || 0, activeInvites },
-    });
+    return Response.json({ users: users || [], invites: invites || [], channels: channels || [], activities: activities || [], settings: settings || { maintenance_mode: false, discord_logs: true, max_users: null }, stats: { users: users?.length || 0, online, channels: channels?.filter((channel) => channel.is_active).length || 0, activeInvites } });
   } catch (error) {
     return Response.json({ error: error.message || 'Erro interno.' }, { status: 500 });
   }
