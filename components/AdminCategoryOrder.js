@@ -29,7 +29,7 @@ export default function AdminCategoryOrder() {
     };
     syncTab();
     const observer = new MutationObserver(syncTab);
-    observer.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
+    observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
     return () => observer.disconnect();
   }, []);
 
