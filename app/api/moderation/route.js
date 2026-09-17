@@ -22,7 +22,7 @@ export async function POST(request) {
     if (!host) return Response.json({ error: 'LiveKit não configurado.' }, { status: 500 });
     const service = new RoomServiceClient(host, process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET);
     if (action === 'disconnect') {
-      await service.removeParticipant(room, identity, { revokeTokenTs: BigInt(Math.floor(Date.now() / 1000) - 60) });
+      await service.removeParticipant(room, identity);
       await actor.admin.from('activity_logs').insert({ actor_id: actor.id, actor_name: actor.username, action: 'participant_disconnected', target: identity, details: `Canal #${room}` });
       return Response.json({ ok: true });
     }
