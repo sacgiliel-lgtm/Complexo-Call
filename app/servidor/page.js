@@ -25,7 +25,6 @@ export default function ServidorPage() {
   const [rightOpen, setRightOpen] = useState(false);
   const [rightTab, setRightTab] = useState('participants');
   const [search, setSearch] = useState('');
-  const [participantFilter, setParticipantFilter] = useState('');
   const [profileOpen, setProfileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [presence, setPresence] = useState('online');
@@ -56,9 +55,7 @@ export default function ServidorPage() {
     localStorage.setItem('cpx-theme', theme);
   }, [theme]);
 
-  useEffect(() => {
-    localStorage.setItem('cpx-sounds', String(sounds));
-  }, [sounds]);
+  useEffect(() => { localStorage.setItem('cpx-sounds', String(sounds)); }, [sounds]);
 
   useEffect(() => {
     let mounted = true;
@@ -136,9 +133,7 @@ export default function ServidorPage() {
     } finally { setConnecting(false); setSidebarOpen(false); }
   }
 
-  function disconnect() {
-    setActive(null); setToken(''); setMessages([]); setMessageText('');
-  }
+  function disconnect() { setActive(null); setToken(''); setMessages([]); setMessageText(''); setRightOpen(false); }
 
   async function loadMessages(channelId, silent = false) {
     if (!channelId || !cred) return;
@@ -151,7 +146,7 @@ export default function ServidorPage() {
         const incoming = json.messages || [];
         const lastIncoming = incoming[incoming.length - 1];
         const lastCurrent = current[current.length - 1];
-        if (!silent && lastIncoming && lastIncoming.id !== lastCurrent?.id && lastIncoming.sender_id !== (user?.type === 'guest' ? cred.type : undefined) && rightTab !== 'chat') pushToast({ type: 'info', title: 'Nova mensagem', message: `${lastIncoming.sender_name}: ${lastIncoming.content.slice(0, 70)}` });
+        if (!silent && lastIncoming && lastIncoming.id !== lastCurrent?.id && lastIncoming.sender_name !== user?.username && rightTab !== 'chat') pushToast({ type: 'info', title: 'Nova mensagem', message: `${lastIncoming.sender_name}: ${lastIncoming.content.slice(0, 70)}` });
         return incoming;
       });
     } catch (messageError) { if (!silent) pushToast({ type: 'error', title: 'Chat indisponível', message: messageError.message }); }
@@ -162,7 +157,7 @@ export default function ServidorPage() {
     loadMessages(active.id, true);
     const interval = window.setInterval(() => loadMessages(active.id), 3000);
     return () => window.clearInterval(interval);
-  }, [active?.id, cred, rightTab]);
+  }, [active?.id, cred, rightTab, user?.username]);
 
   async function sendMessage(event) {
     event.preventDefault();
@@ -172,8 +167,7 @@ export default function ServidorPage() {
     const response = await fetch('/api/messages', { method: 'POST', headers, body: JSON.stringify({ channelId: active.id, content: messageText.trim() }) });
     const json = await response.json();
     if (!response.ok) return pushToast({ type: 'error', title: 'Mensagem não enviada', message: json.error || 'Tente novamente.' });
-    setMessageText('');
-    setMessages((current) => [...current, json.message]);
+    setMessageText(''); setMessages((current) => [...current, json.message]);
   }
 
   async function moderate(room, identity, action) {
@@ -184,20 +178,15 @@ export default function ServidorPage() {
   }
 
   async function logout() {
-    try {
-      if (user?.type === 'member') await supabase.auth.signOut();
-      else await fetch('/api/guest/logout', { method: 'POST' });
-    } finally { router.replace('/'); }
+    try { if (user?.type === 'member') await supabase.auth.signOut(); else await fetch('/api/guest/logout', { method: 'POST' }); }
+    finally { router.replace('/'); }
   }
+
+  function handleRightTab(tab, open = true) { setRightTab(tab); setRightOpen(open); }
 
   const groupedChannels = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return channels.filter((channel) => !q || `${channel.name} ${channel.category} ${channel.description || ''}`.toLowerCase().includes(q)).reduce((groups, channel) => {
-      const category = channel.category || 'GERAL';
-      groups[category] ||= [];
-      groups[category].push(channel);
-      return groups;
-    }, {});
+    return channels.filter((channel) => !q || `${channel.name} ${channel.category} ${channel.description || ''}`.toLowerCase().includes(q)).reduce((groups, channel) => { const category = channel.category || 'GERAL'; groups[category] ||= []; groups[category].push(channel); return groups; }, {});
   }, [channels, search]);
 
   if (loading) return <main className="login-page"><Spinner label="Preparando seu espaço no CPX..." /></main>;
@@ -217,14 +206,15 @@ export default function ServidorPage() {
     </aside>
 
     <section className="main-area">
-      <header className="topbar"><button className="icon-btn mobile-menu" onClick={() => setSidebarOpen(true)} aria-label="Abrir canais"><Icon name="menu" /></button><div className="topbar-channel">{active ? <><span className="hash">#</span><strong>{active.name}</strong><span className="topbar-sub">{active.description || 'Canal de voz e vídeo'}</span></> : <><span className="hash">CPX</span><strong>Área principal</strong><span className="topbar-sub">Selecione um canal para começar</span></>}</div><span className="topbar-spacer" /><div className="search-box"><Icon name="search" size={16} /><input ref={searchRef} className="input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar canais..." aria-label="Buscar canais" /></div><button className="icon-btn mobile-only" onClick={() => { setRightOpen((value) => !value); setRightTab('participants'); }} aria-label="Participantes"><Icon name="users" /></button><button className="icon-btn" onClick={() => { setRightOpen(true); setRightTab('chat'); }} aria-label="Chat"><Icon name="chat" /></button><button className="icon-btn" onClick={() => setSettingsOpen(true)} aria-label="Configurações"><Icon name="settings" /></button></header>
+      <header className="topbar"><button className="icon-btn mobile-menu" onClick={() => setSidebarOpen(true)} aria-label="Abrir canais"><Icon name="menu" /></button><div className="topbar-channel">{active ? <><span className="hash">#</span><strong>{active.name}</strong><span className="topbar-sub">{active.description || 'Canal de voz e vídeo'}</span></> : <><span className="hash">CPX</span><strong>Área principal</strong><span className="topbar-sub">Selecione um canal para começar</span></>}</div><span className="topbar-spacer" /><div className="search-box"><Icon name="search" size={16} /><input ref={searchRef} className="input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar canais...  Ctrl+K" aria-label="Buscar canais" /></div><button className="icon-btn mobile-only" onClick={() => handleRightTab('participants', !rightOpen)} aria-label="Participantes"><Icon name="users" /></button><button className="icon-btn" onClick={() => handleRightTab('chat')} aria-label="Chat"><Icon name="chat" /></button><button className="icon-btn" onClick={() => setSettingsOpen(true)} aria-label="Configurações"><Icon name="settings" /></button></header>
       {connecting && <div className="call-loading"><Spinner label="Estabelecendo conexão segura..." /></div>}
-      {!active || !token ? <div className="main-content"><section className="call-area"><div className="call-empty"><div className="empty-card"><div className="empty-icon"><Icon name="phone" size={28} /></div><h2 style={{ margin: '0 0 8px' }}>Seu espaço no CPX</h2><p style={{ color: 'var(--muted)', lineHeight: 1.6, fontSize: 13 }}>{maintenance ? 'O servidor está em manutenção. Usuários sem permissão de administrador não podem iniciar novas chamadas neste momento.' : 'Escolha um canal na lateral para entrar na chamada. Você poderá conversar por texto, usar câmera, compartilhar a tela e controlar seu áudio.'}</p><div style={{ marginTop: 17, display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}><Badge tone="purple">Voz</Badge><Badge tone="purple">Vídeo</Badge><Badge tone="purple">Chat</Badge><Badge tone="green">Acesso controlado</Badge></div></div></div></section></div> : <RoomExperience token={token} serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} channel={active} user={user} rightTab={rightTab} rightPanelOpen={rightOpen} onRightTab={setRightTab} messages={messages} messageText={messageText} setMessageText={setMessageText} onSendMessage={sendMessage} onToast={pushToast} onDisconnect={disconnect} onModerate={moderate} participantFilter={participantFilter} theme={theme} />}
+      {!active || !token ? <div className="main-content"><section className="call-area"><div className="call-empty"><div className="empty-card"><div className="empty-icon"><Icon name="phone" size={28} /></div><h2 style={{ margin: '0 0 8px' }}>Seu espaço no CPX</h2><p style={{ color: 'var(--muted)', lineHeight: 1.6, fontSize: 13 }}>{maintenance ? 'O servidor está em manutenção. Usuários sem permissão de administrador não podem iniciar novas chamadas neste momento.' : 'Escolha um canal na lateral para entrar na chamada. Você poderá conversar por texto, usar câmera, compartilhar a tela e controlar seu áudio.'}</p><div style={{ marginTop: 17, display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}><Badge tone="purple">Voz</Badge><Badge tone="purple">Vídeo</Badge><Badge tone="purple">Chat</Badge><Badge tone="green">Acesso controlado</Badge></div></div></div></section></div> : <RoomExperience token={token} serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} channel={active} user={user} rightTab={rightTab} rightPanelOpen={rightOpen} onRightTab={handleRightTab} messages={messages} messageText={messageText} setMessageText={setMessageText} onSendMessage={sendMessage} onToast={pushToast} onDisconnect={disconnect} onModerate={moderate} participantFilter={rightTab === 'participants' ? search : ''} theme={theme === 'light' ? 'theme-light' : 'cpx'} />}
     </section>
-    <button className="mobile-dim" aria-hidden="true" onClick={() => { setSidebarOpen(false); setRightOpen(false); }} style={{ display: sidebarOpen || (rightOpen && active) ? 'block' : 'none' }} />
+
+    <button className="mobile-dim" aria-label="Fechar paineis" onClick={() => { setSidebarOpen(false); setRightOpen(false); }} style={{ display: sidebarOpen || (rightOpen && !!active) ? 'block' : 'none', position: 'fixed', inset: 0, zIndex: 50, border: 0, background: 'rgba(0,0,0,.58)' }} />
 
     <Modal open={settingsOpen} title="Preferências do CPX" onClose={() => setSettingsOpen(false)}>
-      <div className="field"><label>Aparência</label><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}><button className={`secondary-btn ${theme === 'cpx' ? 'active-choice' : ''}`} onClick={() => setTheme('cpx')}><Icon name="moon" size={15} /> CPX Dark</button><button className={`secondary-btn ${theme === 'light' ? 'active-choice' : ''}`} onClick={() => setTheme('light')}><Icon name="sun" size={15} /> Claro</button></div></div>
+      <div className="field"><label>Aparência</label><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}><button className="secondary-btn" onClick={() => setTheme('cpx')} style={{ borderColor: theme === 'cpx' ? 'var(--purple)' : undefined }}><Icon name="moon" size={15} /> CPX Dark</button><button className="secondary-btn" onClick={() => setTheme('light')} style={{ borderColor: theme === 'light' ? 'var(--purple)' : undefined }}><Icon name="sun" size={15} /> Claro</button></div></div>
       <div className="toggle-row"><div><strong>Sons da interface</strong><span>Notificações discretas ao entrar, sair ou receber eventos.</span></div><input className="switch" type="checkbox" checked={sounds} onChange={(e) => setSounds(e.target.checked)} /></div>
       <div className="toggle-row"><div><strong>Atalhos de teclado</strong><span>M = microfone · C = câmera · S = tela · Esc = sair.</span></div><Badge tone="green">Ativo</Badge></div>
       <div className="modal-actions"><button className="primary-btn" onClick={() => setSettingsOpen(false)}>Fechar</button></div>
