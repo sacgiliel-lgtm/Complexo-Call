@@ -1,11 +1,11 @@
 'use client';
 
+import { supabase } from '../lib/supabaseClient';
+
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { createClient } from '@supabase/supabase-js';
 import { Modal, Spinner } from './ui';
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
 export default function AdminCategoryOrder() {
   const [visible, setVisible] = useState(false);
