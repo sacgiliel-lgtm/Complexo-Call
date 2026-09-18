@@ -10,6 +10,11 @@ import '@livekit/components-styles';
 
 const NOTIFICATION_KEY = 'cpx-notifications';
 
+function channelsEqual(current, next) {
+  if (current.length !== next.length) return false;
+  return current.every((channel, index) => JSON.stringify(channel) === JSON.stringify(next[index]));
+}
+
 export default function ServidorPage() {
   const router = useRouter();
   const searchRef = useRef(null);
@@ -51,6 +56,8 @@ export default function ServidorPage() {
   const [generatedCallInvite, setGeneratedCallInvite] = useState(null);
   const presenceChannelsRef = useRef(new Map());
   const desiredPresenceRef = useRef(null);
+  const rightTabRef = useRef(rightTab);
+  const usernameRef = useRef(user?.username);
 
   function pushToast(toast) {
     const item = { id: `${Date.now()}-${Math.random()}`, type: toast.type || 'info', title: toast.title || 'CPX', message: toast.message || '', createdAt: Date.now(), unread: true };
@@ -76,6 +83,8 @@ export default function ServidorPage() {
   }, []);
 
   useEffect(() => { localStorage.setItem('cpx-sounds', String(sounds)); }, [sounds]);
+  useEffect(() => { rightTabRef.current = rightTab; }, [rightTab]);
+  useEffect(() => { usernameRef.current = user?.username; }, [user?.username]);
 
   useEffect(() => {
     let mounted = true;
@@ -118,7 +127,9 @@ export default function ServidorPage() {
         const json = await response.json();
         if (!mounted) return;
         if (!response.ok) { setMaintenance(response.status === 503 || json.maintenance); setChannels([]); pushToast({ type: 'error', title: 'Servidor', message: json.error || 'Não foi possível carregar os canais.' }); return; }
-        setMaintenance(!!json.maintenance); setChannels(json.channels || []);
+        setMaintenance(!!json.maintenance);
+        const nextChannels = json.channels || [];
+        setChannels((current) => channelsEqual(current, nextChannels) ? current : nextChannels);
       } catch (error) { if (mounted) pushToast({ type: 'error', title: 'Servidor', message: error.message || 'Falha ao consultar os canais.' }); }
     }
     loadChannels();
@@ -342,7 +353,7 @@ export default function ServidorPage() {
         if (!message || cancelled) return;
         setMessages((current) => {
           if (current.some((item) => item.id === message.id)) return current;
-          if (message.sender_name !== user?.username && rightTab !== 'chat') {
+          if (message.sender_name !== usernameRef.current && rightTabRef.current !== 'chat') {
             pushToast({ type: 'info', title: 'Nova mensagem', message: message.sender_name + ': ' + message.content.slice(0, 70) });
           }
           return [...current, message].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
@@ -353,7 +364,7 @@ export default function ServidorPage() {
       cancelled = true;
       supabase.removeChannel(realtimeChannel);
     };
-  }, [active?.id, cred, rightTab, user?.username]);
+  }, [active?.id, cred]);
 
   async function sendMessage(event) {
     event.preventDefault(); if (!active || !messageText.trim() || !cred) return;
