@@ -274,7 +274,7 @@ function CallLobby({ channel, user, audio, video, setAudio, setVideo, audioDevic
   return <div className={styles.lobbyShell}>
     <div className={styles.lobbyGlow} />
     <div className={styles.lobbyCard}>
-      <div className={styles.brand}><span className={styles.logo}>CPX</span><span>CALL</span></div>
+      <div className={styles.brand}><span className={styles.logo} aria-hidden="true" /><span>CALL</span></div>
       <div className={styles.kicker}>Preparar chamada</div>
       <h2>Entrar em <span>#{channel.name}</span></h2>
       <p>Confira câmera e microfone antes de entrar. Você poderá alterar os dispositivos durante a chamada.</p>
