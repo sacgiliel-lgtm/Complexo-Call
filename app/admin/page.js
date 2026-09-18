@@ -22,7 +22,8 @@ export default function AdminDashboard() {
   const [channelModal, setChannelModal] = useState(false);
   const [confirm, setConfirm] = useState(null);
   const [generatedCode, setGeneratedCode] = useState('');
-  const [newUser, setNewUser] = useState({ email: '', username: '', password: '', role: 'membro' });
+  const [generatedPassword, setGeneratedPassword] = useState('');
+  const [newUser, setNewUser] = useState({ email: '', username: '', role: 'membro' });
   const [inviteForm, setInviteForm] = useState({ guestName: '', expiresMinutes: 30 });
   const [channelForm, setChannelForm] = useState({ id: '', name: '', category: 'GERAL', description: '', icon: 'voice', sort_order: 0, guest_access: false, is_waiting_room: false, is_active: true });
   const [settingsForm, setSettingsForm] = useState({ maintenance_mode: false, discord_logs: true, max_users: 'ilimitado', call_invite_enabled: true, call_invite_expires_minutes: 60 });
@@ -74,7 +75,7 @@ export default function AdminDashboard() {
     try {
       const response = await fetch('/api/admin/create-user', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify(newUser) });
       const json = await response.json(); if (!response.ok) throw new Error(json.error || 'Não foi possível criar o usuário.');
-      setNewUser({ email: '', username: '', password: '', role: 'membro' }); setUserModal(false); toast(`Usuário ${json.user.username} criado.`); await load();
+      setNewUser({ email: '', username: '', role: 'membro' }); setGeneratedPassword(json.temporaryPassword || ''); toast(`Usuário ${json.user.username} criado.`); await load();
     } catch (error) { toast(error.message, 'error', 'Novo usuário'); }
     finally { setBusy(false); }
   }
@@ -134,7 +135,20 @@ export default function AdminDashboard() {
       </section>}
   </div>
 
-  <Modal open={userModal} title="Criar novo usuário" onClose={() => setUserModal(false)}><form onSubmit={createUser}><div className="field"><label>E-mail</label><input className="input" type="email" required value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} /></div><div className="field"><label>Username</label><input className="input" maxLength={32} required value={newUser.username} onChange={(e) => setNewUser({ ...newUser, username: e.target.value })} /></div><div className="field"><label>Senha</label><input className="input" type="password" minLength={8} required value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} /></div><div className="field"><label>Cargo</label><select className="input" value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}><option value="membro">Membro</option><option value="admin">Administrador</option></select></div><div className="modal-actions"><button type="button" className="ghost-btn" onClick={() => setUserModal(false)}>Cancelar</button><button className="primary-btn" disabled={busy}>{busy ? <Spinner label="Criando..." /> : 'Criar usuário'}</button></div></form></Modal>
+  <Modal open={userModal} title={generatedPassword ? 'Usuário criado' : 'Criar novo usuário'} onClose={() => { setUserModal(false); setGeneratedPassword(''); }}>
+    {generatedPassword ? <div>
+      <div className="success-box">Usuário criado. A senha abaixo é temporária e será exigida apenas no primeiro acesso.</div>
+      <div className="field" style={{ marginTop: 14 }}><label>Senha temporária</label><input className="input" readOnly value={generatedPassword} onFocus={(e) => e.target.select()} /></div>
+      <div className="helper" style={{ lineHeight: 1.5 }}>Copie esta senha e entregue ao usuário com segurança. Ela não poderá ser consultada novamente pelo painel.</div>
+      <div className="modal-actions"><button type="button" className="secondary-btn" onClick={async () => { try { await navigator.clipboard.writeText(generatedPassword); toast('Senha temporária copiada.'); } catch { toast('Não foi possível copiar a senha.', 'error'); } }}>Copiar senha</button><button type="button" className="primary-btn" onClick={() => { setUserModal(false); setGeneratedPassword(''); }}>Concluir</button></div>
+    </div> : <form onSubmit={createUser}>
+      <div className="field"><label>E-mail</label><input className="input" type="email" required value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} /></div>
+      <div className="field"><label>Username</label><input className="input" maxLength={32} required value={newUser.username} onChange={(e) => setNewUser({ ...newUser, username: e.target.value })} /></div>
+      <div className="field"><label>Cargo</label><select className="input" value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}><option value="membro">Membro</option><option value="admin">Administrador</option></select></div>
+      <div className="helper" style={{ lineHeight: 1.5, marginTop: 4 }}>Uma senha temporária aleatória será gerada automaticamente. No primeiro acesso, o usuário deverá criar a senha definitiva.</div>
+      <div className="modal-actions"><button type="button" className="ghost-btn" onClick={() => setUserModal(false)}>Cancelar</button><button className="primary-btn" disabled={busy}>{busy ? <Spinner label="Criando..." /> : 'Criar usuário'}</button></div>
+    </form>}
+  </Modal>
 
   <Modal open={inviteModal} title={generatedCode ? 'Convite pronto' : 'Gerar convite'} onClose={() => setInviteModal(false)}>{generatedCode ? <><div className="invite-code-card"><div><div className="helper">Código temporário</div><div className="invite-code">{generatedCode}</div></div><div style={{ display: 'flex', gap: 6 }}><button className="secondary-btn button-sm" onClick={copyCode}><Icon name="copy" size={14} /> Código</button><button className="secondary-btn button-sm" onClick={copyInviteLink}><Icon name="chat" size={14} /> Link</button></div></div><p className="helper" style={{ margin: '12px 0 0', lineHeight: 1.5 }}>O link abre a tela de convite já preenchida. O código completo continua aparecendo somente nesta tela.</p><div className="modal-actions"><button className="primary-btn" onClick={() => { setGeneratedCode(''); setInviteForm({ guestName: '', expiresMinutes: 30 }); }}>Gerar outro</button><button className="ghost-btn" onClick={() => setInviteModal(false)}>Fechar</button></div></> : <form onSubmit={generateInvite}><div className="field"><label>Nome do convidado</label><input className="input" placeholder="Ex.: João" value={inviteForm.guestName} onChange={(e) => setInviteForm({ ...inviteForm, guestName: e.target.value })} /></div><div className="field"><label>Validade</label><select className="input" value={inviteForm.expiresMinutes} onChange={(e) => setInviteForm({ ...inviteForm, expiresMinutes: Number(e.target.value) })}><option value={15}>15 minutos</option><option value={30}>30 minutos</option><option value={60}>1 hora</option><option value={180}>3 horas</option><option value={1440}>24 horas</option><option value={10080}>7 dias</option></select></div><div className="modal-actions"><button type="button" className="ghost-btn" onClick={() => setInviteModal(false)}>Cancelar</button><button className="primary-btn" disabled={busy}>{busy ? <Spinner label="Gerando..." /> : 'Gerar convite'}</button></div></form>}</Modal>
 

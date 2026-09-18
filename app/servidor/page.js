@@ -35,6 +35,10 @@ export default function ServidorPage() {
   const [moveSelection, setMoveSelection] = useState(null);
   const [moveTarget, setMoveTarget] = useState('');
   const [profileName, setProfileName] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordBusy, setPasswordBusy] = useState(false);
   const [presence, setPresence] = useState('online');
   const [sounds, setSounds] = useState(true);
   const [messages, setMessages] = useState([]);
@@ -373,6 +377,29 @@ export default function ServidorPage() {
     setUser((current) => ({ ...current, username: json.profile.username })); setProfileEditorOpen(false); pushToast({ type: 'success', title: 'Perfil atualizado', message: 'Seu nome foi alterado com sucesso.' });
   }
 
+  async function changeOwnPassword(event) {
+    event.preventDefault();
+    if (!cred || user?.type === 'guest') return;
+    if (newPassword.length < 8) return pushToast({ type: 'error', title: 'Senha', message: 'A nova senha deve ter pelo menos 8 caracteres.' });
+    if (newPassword !== confirmPassword) return pushToast({ type: 'error', title: 'Senha', message: 'As senhas não conferem.' });
+    setPasswordBusy(true);
+    try {
+      const response = await fetch('/api/profile/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cred.value}` },
+        body: JSON.stringify({ currentPassword, newPassword })
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error || 'Não foi possível alterar sua senha.');
+      setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
+      pushToast({ type: 'success', title: 'Senha alterada', message: 'Sua senha foi alterada com sucesso.' });
+    } catch (error) {
+      pushToast({ type: 'error', title: 'Senha', message: error.message });
+    } finally {
+      setPasswordBusy(false);
+    }
+  }
+
   async function logout() { try { if (user?.type === 'member') await supabase.auth.signOut(); else await fetch('/api/guest/logout', { method: 'POST' }); } finally { router.replace('/'); } }
   function handleRightTab(tab, open = true) { setRightTab(tab); setRightOpen(open); }
   function clearNotifications() { setNotifications([]); localStorage.removeItem(NOTIFICATION_KEY); }
@@ -455,6 +482,13 @@ export default function ServidorPage() {
     <Modal open={profileEditorOpen} title="Meu perfil" onClose={() => setProfileEditorOpen(false)}>
       <div className="profile-identity"><Avatar name={user?.username} size="lg" status={presence} /><div><strong>{user?.username}</strong><span>{user?.role === 'admin' ? 'Administrador' : 'Membro'} • Status {presence}</span></div></div>
       <form onSubmit={updateProfile}><div className="field"><label>Nome exibido</label><input className="input" value={profileName} maxLength={32} onChange={(e) => setProfileName(e.target.value)} /><span className="helper">Este nome será usado na lista de participantes e no chat.</span></div><div className="modal-actions"><button type="button" className="ghost-btn" onClick={() => setProfileEditorOpen(false)}>Cancelar</button><button className="primary-btn">Salvar alterações</button></div></form>
+      <div className="menu-divider" style={{ margin: '18px 0' }} />
+      <form onSubmit={changeOwnPassword}>
+        <div className="field"><label>Senha atual</label><input className="input" type="password" autoComplete="current-password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required /></div>
+        <div className="field"><label>Nova senha</label><input className="input" type="password" autoComplete="new-password" minLength={8} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required /><span className="helper">Use pelo menos 8 caracteres.</span></div>
+        <div className="field"><label>Confirmar nova senha</label><input className="input" type="password" autoComplete="new-password" minLength={8} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required /></div>
+        <div className="modal-actions"><button type="submit" className="primary-btn" disabled={passwordBusy}>{passwordBusy ? <Spinner label="Alterando..." /> : 'Alterar senha'}</button></div>
+      </form>
     </Modal>
 
     <Modal open={settingsOpen} title="Preferências do CPX" onClose={() => setSettingsOpen(false)}>
