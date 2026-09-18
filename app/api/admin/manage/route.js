@@ -144,10 +144,21 @@ export async function POST(request) {
 
     if (action === 'settings') {
       const maxUsers = body.maxUsers === null || body.maxUsers === 'ilimitado' ? null : Math.max(1, Math.min(Number(body.maxUsers), 1000));
-      const payload = { id: 1, maintenance_mode: !!body.maintenanceMode, discord_logs: !!body.discordLogs, max_users: maxUsers, updated_at: new Date().toISOString() };
+      const callInviteExpiresMinutes = Math.max(5, Math.min(Number(body.callInviteExpiresMinutes) || 60, 10080));
+      const callInviteGuestName = String(body.callInviteGuestName || 'Convidado').trim().slice(0, 32) || 'Convidado';
+      const payload = {
+        id: 1,
+        maintenance_mode: !!body.maintenanceMode,
+        discord_logs: !!body.discordLogs,
+        max_users: maxUsers,
+        call_invite_enabled: body.callInviteEnabled !== false,
+        call_invite_expires_minutes: callInviteExpiresMinutes,
+        call_invite_guest_name: callInviteGuestName,
+        updated_at: new Date().toISOString()
+      };
       const { error } = await admin.from('server_settings').upsert(payload);
       if (error) throw error;
-      await logActivity(admin, profile, 'settings_updated', 'server', `manutencao=${payload.maintenance_mode}; limite=${payload.max_users ?? 'ilimitado'}`);
+      await logActivity(admin, profile, 'settings_updated', 'server', `manutencao=${payload.maintenance_mode}; limite=${payload.max_users ?? 'ilimitado'}; convites=${payload.call_invite_enabled ? 'on' : 'off'}; validade=${callInviteExpiresMinutes} min`);
       return Response.json({ success: true });
     }
 
