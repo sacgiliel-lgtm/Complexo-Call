@@ -42,6 +42,10 @@ export default function ServidorPage() {
   const [messageText, setMessageText] = useState('');
   const [toasts, setToasts] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [pendingCallName, setPendingCallName] = useState('');
+  const [callInviteOpen, setCallInviteOpen] = useState(false);
+  const [callInviteBusy, setCallInviteBusy] = useState(false);
+  const [generatedCallInvite, setGeneratedCallInvite] = useState(null);
 
   function pushToast(toast) {
     const item = { id: `${Date.now()}-${Math.random()}`, type: toast.type || 'info', title: toast.title || 'CPX', message: toast.message || '', createdAt: Date.now(), unread: true };
@@ -76,6 +80,8 @@ export default function ServidorPage() {
 
   useEffect(() => {
     let mounted = true;
+    const requestedCall = new URLSearchParams(window.location.search).get('call');
+    if (requestedCall) setPendingCallName(requestedCall);
     (async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -120,6 +126,15 @@ export default function ServidorPage() {
     const interval = window.setInterval(loadChannels, 20000);
     return () => { mounted = false; window.clearInterval(interval); };
   }, [cred]);
+
+  useEffect(() => {
+    if (!cred || !pendingCallName || !channels.length) return;
+    const target = channels.find((channel) => channel.name === pendingCallName);
+    if (!target) return;
+    setPendingCallName('');
+    if (window.history?.replaceState) window.history.replaceState({}, '', '/servidor');
+    connect(target);
+  }, [cred, channels, pendingCallName]);
 
   useEffect(() => {
     if (!cred) return;
@@ -212,6 +227,48 @@ export default function ServidorPage() {
     }
   }
 
+  async function createCallInvite() {
+    if (!active || user?.type !== 'member' || !cred || cred.type !== 'session' || callInviteBusy) return;
+    setCallInviteBusy(true);
+    setGeneratedCallInvite(null);
+    try {
+      const response = await fetch('/api/call-invites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cred.value}` },
+        body: JSON.stringify({ roomName: active.name }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error || 'Não foi possível criar o convite.');
+      setGeneratedCallInvite(json);
+      try {
+        await navigator.clipboard?.writeText(json.link);
+        pushToast({ type: 'success', title: 'Convite criado', message: 'O link foi copiado para a área de transferência.' });
+      } catch {
+        pushToast({ type: 'success', title: 'Convite criado', message: 'O convite está pronto para compartilhar.' });
+      }
+    } catch (error) {
+      pushToast({ type: 'error', title: 'Convite', message: error.message || 'Não foi possível criar o convite.' });
+    } finally {
+      setCallInviteBusy(false);
+    }
+  }
+
+  function openCallInvite() {
+    if (user?.type !== 'member' || !active) return;
+    setGeneratedCallInvite(null);
+    setCallInviteOpen(true);
+  }
+
+  async function copyGeneratedCallInvite() {
+    if (!generatedCallInvite?.link) return;
+    try {
+      await navigator.clipboard.writeText(generatedCallInvite.link);
+      pushToast({ type: 'success', title: 'Convite', message: 'Link copiado.' });
+    } catch {
+      pushToast({ type: 'error', title: 'Convite', message: 'Não foi possível copiar o link.' });
+    }
+  }
+
   async function loadMessages(channelId, silent = false) {
     if (!channelId || !cred) return;
     const headers = cred.type === 'session' ? { Authorization: `Bearer ${cred.value}` } : {};
@@ -298,7 +355,7 @@ export default function ServidorPage() {
     <section className="main-area">
       <header className="topbar"><button className="icon-btn mobile-menu" onClick={() => setSidebarOpen(true)} aria-label="Abrir canais"><Icon name="menu" /></button><div className="topbar-channel">{active ? <><span className="hash">#</span><strong>{active.name}</strong><span className="topbar-sub">{active.description || 'Canal de voz e vídeo'}</span></> : <><span className="topbar-brand-mark" aria-hidden="true" /><strong>Área principal</strong><span className="topbar-sub">Selecione um canal para começar</span></>}</div><span className="topbar-spacer" /><div className="search-box"><Icon name="search" size={16} /><input ref={searchRef} className="input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar canais...  Ctrl+K" aria-label="Buscar canais" /></div><button className={`icon-btn topbar-alert ${unreadCount ? '' : 'empty'}`} onClick={() => { setNotificationsOpen(true); markNotificationsRead(); }} aria-label={`Notificações${unreadCount ? `, ${unreadCount} novas` : ''}`}><Icon name="bell" /></button><button className="icon-btn mobile-only" onClick={() => handleRightTab('participants', !rightOpen)} aria-label="Participantes"><Icon name="users" /></button><button className="icon-btn" onClick={() => handleRightTab('chat')} aria-label="Chat"><Icon name="chat" /></button><button className="icon-btn" onClick={() => setSettingsOpen(true)} aria-label="Configurações"><Icon name="settings" /></button></header>
       {connecting && <div className="call-loading"><Spinner label="Estabelecendo conexão segura..." /></div>}
-      {!active || !token ? <div className="main-content"><section className="call-area"><div className="call-empty"><div className="empty-card"><div className="empty-icon"><Icon name="phone" size={28} /></div><h2 style={{ margin: '0 0 8px' }}>Seu espaço no CPX</h2><p style={{ color: 'var(--muted)', lineHeight: 1.6, fontSize: 13 }}>{maintenance ? 'O servidor está em manutenção. Usuários sem permissão de administrador não podem iniciar novas chamadas neste momento.' : 'Escolha um canal na lateral para entrar na chamada. Você poderá conversar por texto, usar câmera, compartilhar a tela e controlar seu áudio.'}</p><div style={{ marginTop: 17, display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}><Badge tone="purple">Voz</Badge><Badge tone="purple">Vídeo</Badge><Badge tone="purple">Chat</Badge><Badge tone="green">Acesso controlado</Badge></div></div></div></section></div> : <RoomExperience token={token} serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} channel={active} user={user} rightTab={rightTab} rightPanelOpen={rightOpen} onRightTab={handleRightTab} messages={messages} messageText={messageText} setMessageText={setMessageText} onSendMessage={sendMessage} onToast={pushToast} onDisconnect={disconnect} onModerate={moderate} participantFilter={rightTab === 'participants' ? search : ''} theme={theme === 'light' ? 'theme-light' : 'cpx'} />}
+      {!active || !token ? <div className="main-content"><section className="call-area"><div className="call-empty"><div className="empty-card"><div className="empty-icon"><Icon name="phone" size={28} /></div><h2 style={{ margin: '0 0 8px' }}>Seu espaço no CPX</h2><p style={{ color: 'var(--muted)', lineHeight: 1.6, fontSize: 13 }}>{maintenance ? 'O servidor está em manutenção. Usuários sem permissão de administrador não podem iniciar novas chamadas neste momento.' : 'Escolha um canal na lateral para entrar na chamada. Você poderá conversar por texto, usar câmera, compartilhar a tela e controlar seu áudio.'}</p><div style={{ marginTop: 17, display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}><Badge tone="purple">Voz</Badge><Badge tone="purple">Vídeo</Badge><Badge tone="purple">Chat</Badge><Badge tone="green">Acesso controlado</Badge></div></div></div></section></div> : <RoomExperience token={token} serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} channel={active} user={user} rightTab={rightTab} rightPanelOpen={rightOpen} onRightTab={handleRightTab} messages={messages} messageText={messageText} setMessageText={setMessageText} onSendMessage={sendMessage} onToast={pushToast} onDisconnect={disconnect} onModerate={moderate} onCreateInvite={openCallInvite} participantFilter={rightTab === 'participants' ? search : ''} theme={theme === 'light' ? 'theme-light' : 'cpx'} />}
     </section>
 
     <Modal open={moveParticipantOpen} title="Mover participante" onClose={() => { if (!movingParticipant) { setMoveParticipantOpen(false); setMoveSelection(null); } }} width={480}>
@@ -308,6 +365,19 @@ export default function ServidorPage() {
         <span className="helper">O participante será transferido da call atual para a call escolhida.</span>
         <div className="modal-actions"><button type="button" className="ghost-btn" onClick={() => { setMoveParticipantOpen(false); setMoveSelection(null); }} disabled={movingParticipant}>Cancelar</button><button type="button" className="primary-btn" onClick={moveSelectedParticipant} disabled={movingParticipant || !moveSelection || !moveTarget}>{movingParticipant ? <Spinner label="Movendo..." /> : <><Icon name="chevron" size={15} /> Mover para call</>}</button></div>
       </div>
+    </Modal>
+
+    <Modal open={callInviteOpen} title={generatedCallInvite ? 'Convite criado' : `Convidar para #${active?.name || 'call'}`} onClose={() => { if (!callInviteBusy) { setCallInviteOpen(false); setGeneratedCallInvite(null); } }}>
+      {!generatedCallInvite ? <div className="call-invite-dialog">
+        <div className="call-invite-target"><Icon name="phone" size={18} /><div><strong>#{active?.name}</strong><span>Convite vinculado a esta call.</span></div></div>
+        <p className="helper">O convite usará automaticamente as regras definidas pelo administrador e só pode ser criado enquanto você estiver dentro desta call.</p>
+        <div className="modal-actions"><button type="button" className="ghost-btn" onClick={() => setCallInviteOpen(false)} disabled={callInviteBusy}>Cancelar</button><button type="button" className="primary-btn" onClick={createCallInvite} disabled={callInviteBusy}>{callInviteBusy ? <Spinner label="Criando..." /> : <><Icon name="shield" size={15} /> Criar convite</>}</button></div>
+      </div> : <div className="call-invite-dialog">
+        <div className="call-invite-success"><Icon name="check" size={18} /><div><strong>Convite pronto</strong><span>#{generatedCallInvite.roomName} · expira em {new Date(generatedCallInvite.expiresAt).toLocaleString('pt-BR')}</span></div></div>
+        <div className="call-invite-code"><span>Código</span><strong>{generatedCallInvite.code}</strong></div>
+        <div className="call-invite-link">{generatedCallInvite.link}</div>
+        <div className="modal-actions"><button type="button" className="ghost-btn" onClick={copyGeneratedCallInvite}>Copiar link</button><button type="button" className="primary-btn" onClick={() => { setCallInviteOpen(false); setGeneratedCallInvite(null); }}>Fechar</button></div>
+      </div>}
     </Modal>
 
     <Modal open={notificationsOpen} title="Notificações" onClose={() => setNotificationsOpen(false)}>
