@@ -20,7 +20,7 @@ export async function POST(request) {
     if (!ALLOWED.has(action) || !channel) return Response.json({ error: 'Evento de auditoria inválido.' }, { status: 400 });
     await logDiscordEvent({
       action,
-      actor: target && target !== actor.username ? { id: target, username: target } : actor,
+      actor,
       target: target || actor.username,
       channel,
       details,
