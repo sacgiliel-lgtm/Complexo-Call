@@ -20,8 +20,8 @@ export async function POST(request) {
     if (invite.room_name) {
       const { data: invitedChannel, error: roomError } = await admin.from('channels').select('name,is_active,guest_access').eq('name', invite.room_name).maybeSingle();
       if (roomError) throw roomError;
-      if (!invitedChannel || !invitedChannel.is_active || !invitedChannel.guest_access) {
-        return Response.json({ error: 'A call deste convite não está disponível para convidados.' }, { status: 410 });
+      if (!invitedChannel || !invitedChannel.is_active) {
+        return Response.json({ error: 'A call deste convite não está disponível.' }, { status: 410 });
       }
       roomName = invitedChannel.name;
     }
