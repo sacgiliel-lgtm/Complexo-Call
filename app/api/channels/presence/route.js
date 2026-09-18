@@ -36,8 +36,11 @@ export async function GET(request) {
       .eq('is_active', true)
       .order('sort_order', { ascending: true });
     if (actor.type === 'guest') {
-      query = query.eq('guest_access', true);
-      if (actor.guest?.room_name) query = query.eq('name', actor.guest.room_name);
+      if (actor.guest?.room_name) {
+        query = query.eq('name', actor.guest.room_name);
+      } else {
+        query = query.eq('guest_access', true);
+      }
     }
 
     const { data: channels, error } = await query;
