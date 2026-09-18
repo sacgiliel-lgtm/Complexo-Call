@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { getRequestActor, actorResponse } from '../../../../lib/requestAuth';
+import { logDiscordEvent } from '../../../../lib/discordLogger';
 
 function validPassword(value) {
   return typeof value === 'string' && value.length >= 8 && value.length <= 128;
@@ -39,15 +40,7 @@ export async function POST(request) {
       .eq('id', actor.id);
     if (profileError) return Response.json({ error: 'Senha alterada, mas não foi possível concluir a ativação da conta. Tente novamente.' }, { status: 500 });
 
-    try {
-      await actor.admin.from('activity_logs').insert({
-        actor_id: actor.id,
-        actor_name: actor.username || actor.email || 'Membro',
-        action: 'password_changed',
-        target: actor.username || actor.id,
-        details: force ? 'primeiro acesso' : 'alteração pelo próprio usuário'
-      });
-    } catch {}
+    await logDiscordEvent({ action: 'password_changed', actor, target: actor.username || actor.id, details: force ? 'Primeiro acesso.' : 'Alteração pelo próprio usuário.' });
 
     return Response.json({ success: true, firstLoginCompleted: force });
   } catch (error) {
