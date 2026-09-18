@@ -24,8 +24,11 @@ export async function GET(request) {
     if (maintenance && actor.role !== 'admin') return json({ error: 'Servidor em manutenção.', maintenance: true }, { status: 503 });
     let query = actor.admin.from('channels').select('id,name,is_waiting_room,guest_access,category,description,icon,sort_order,is_active').eq('is_active', true).order('sort_order', { ascending: true });
     if (actor.role === 'convidado') {
-      query = query.eq('guest_access', true);
-      if (actor.guest?.room_name) query = query.eq('name', actor.guest.room_name);
+      if (actor.guest?.room_name) {
+        query = query.eq('name', actor.guest.room_name);
+      } else {
+        query = query.eq('guest_access', true);
+      }
     }
     const { data: channels, error } = await query;
     if (error) throw error;
