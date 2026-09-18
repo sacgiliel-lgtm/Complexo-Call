@@ -359,8 +359,12 @@ export default function ServidorPage() {
     event.preventDefault(); if (!active || !messageText.trim() || !cred) return;
     const headers = { 'Content-Type': 'application/json' }; if (cred.type === 'session') headers.Authorization = `Bearer ${cred.value}`;
     const response = await fetch('/api/messages', { method: 'POST', headers, body: JSON.stringify({ channelId: active.id, content: messageText.trim() }) }); const json = await response.json();
-    if (!response.ok) return pushToast({ type: 'error', title: 'Mensagem', message: json.error || 'Não foi possível enviar.' });
-    setMessageText(''); setMessages((current) => [...current, json.message]);
+    if (!response.ok) {
+      pushToast({ type: 'error', title: 'Mensagem', message: json.error || 'Não foi possível enviar.' });
+      return false;
+    }
+    setMessageText(''); setMessages((current) => current.some((item) => item.id === json.message.id) ? current : [...current, json.message]);
+    return true;
   }
   async function moderate(room, identity, action) {
     const response = await fetch('/api/moderation', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cred.value}` }, body: JSON.stringify({ room, identity, action }) }); const json = await response.json();
