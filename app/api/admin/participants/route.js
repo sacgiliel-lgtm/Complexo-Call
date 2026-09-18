@@ -52,7 +52,6 @@ export async function POST(request) {
   const identity = String(body.identity || '').trim();
   if (!sourceRoom || !destinationRoom || !identity) return Response.json({ error: 'Sala de origem, destino e participante são obrigatórios.' }, { status: 400 });
   if (sourceRoom === destinationRoom) return Response.json({ error: 'A sala de destino precisa ser diferente da sala de origem.' }, { status: 400 });
-  if (identity.startsWith('guest:')) return Response.json({ error: 'Convidados não podem ser movimentados para outra call.' }, { status: 403 });
 
   try {
     const [sourceChannel, destinationChannel] = await Promise.all([
