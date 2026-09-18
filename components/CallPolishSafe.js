@@ -189,7 +189,7 @@ function CallLobby({ channel, user, audio, video, setAudio, setVideo, audioDevic
   useEffect(() => { if (!cameraDevice && devices.video[0]?.deviceId) setCameraDevice(devices.video[0].deviceId); }, [cameraDevice, devices.video, setCameraDevice]);
 
   return <div className={styles.lobbyShell}><div className={styles.lobbyGlow} /><div className={styles.lobbyCard}>
-    <div className={styles.brand}><span className={styles.logo}>CPX</span><span>CALL</span></div>
+    <div className={styles.brand}><span className={styles.logo} aria-hidden="true" /><span>CALL</span></div>
     <div className={styles.kicker}>Preparar chamada</div>
     <h2>Entrar em <span>#{channel.name}</span></h2>
     <p>Confira câmera e microfone antes de entrar. Você poderá alterar os dispositivos durante a chamada.</p>
@@ -349,5 +349,5 @@ function CallControls({ focusMode, setFocusMode, moreOpen, setMoreOpen, reaction
 }
 
 function CallEndedScreen({ channel, user, duration, onBack }) {
-  return <div className={styles.endedShell}><div className={styles.endedCard}><div className={styles.endedIcon}><Icon name="phone" size={23} /></div><span className={styles.kicker}>Chamada encerrada</span><h2>Você saiu de <span>#{channel.name}</span></h2><p>Até a próxima, {user.username}.</p><div className={styles.summary}><div><strong>{formatDuration(duration)}</strong><span>Duração</span></div><div><strong>{user.username}</strong><span>Participante</span></div><div><strong>✓</strong><span>Sessão finalizada</span></div></div><button className="primary-btn" onClick={onBack}><Icon name="phone" size={17} /> Voltar ao servidor</button></div></div>;
+  return <div className={styles.endedShell}><div className={styles.endedCard}><div className={styles.endedBrand}><span className={styles.logo} aria-hidden="true" /><span>CALL</span></div><div className={styles.endedIcon}><Icon name="phone" size={23} /></div><span className={styles.kicker}>Chamada encerrada</span><h2>Você saiu de <span>#{channel.name}</span></h2><p>Até a próxima, {user.username}.</p><div className={styles.summary}><div><strong>{formatDuration(duration)}</strong><span>Duração</span></div><div><strong>{user.username}</strong><span>Participante</span></div><div><strong>✓</strong><span>Sessão finalizada</span></div></div><button className="primary-btn" onClick={onBack}><Icon name="phone" size={17} /> Voltar ao servidor</button></div></div>;
 }
