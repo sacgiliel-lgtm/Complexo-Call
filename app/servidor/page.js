@@ -148,9 +148,7 @@ export default function ServidorPage() {
     if (!cred || !channels.length || !user?.identity) return;
     let cancelled = false;
     const subscriptions = new Map();
-    const visibleChannels = user.type === 'guest' && user.guestRoomName
-      ? channels.filter((channel) => channel.name === user.guestRoomName)
-      : channels;
+    const visibleChannels = channels;
 
     visibleChannels.forEach((channel) => {
       const realtimeChannel = supabase.channel('cpx-call-presence:' + channel.id, {
