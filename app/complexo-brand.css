@@ -10,3 +10,38 @@
 
 @media(max-width:680px){.cpx-home-logo{width:164px;height:42px}.cpx-home-nav{align-items:center}.server-shell.no-right .mini-logo{width:35px;height:39px}}
 @media(max-width:460px){.cpx-home-logo{width:148px;height:38px}}
+
+/* Brand consistency across secondary surfaces that still render the generic CPX mark. */
+.admin-page .brand-logo{
+  width:192px;
+  height:48px;
+  flex:none;
+  border:0;
+  border-radius:0;
+  background:transparent url('/ComplexoHorinzontal–Branco.png') center/contain no-repeat;
+  box-shadow:none;
+  color:transparent;
+  font-size:0;
+  line-height:0;
+  transform:none;
+}
+.admin-page .brand-logo::after{content:none}
+.server-shell.no-right .topbar-brand-mark{
+  width:28px;
+  height:30px;
+  flex:none;
+  display:block;
+  border:0;
+  border-radius:0;
+  background:transparent url('/ComplexoVertical–Branco.png') center/contain no-repeat;
+}
+.server-shell.no-right .topbar-channel:has(.topbar-brand-mark){
+  gap:10px;
+}
+@media(max-width:680px){
+  .admin-page .brand-logo{width:164px;height:42px}
+  .server-shell.no-right .topbar-brand-mark{width:25px;height:27px}
+}
+@media(max-width:460px){
+  .admin-page .brand-logo{width:148px;height:38px}
+}
