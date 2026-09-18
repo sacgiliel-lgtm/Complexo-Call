@@ -16,7 +16,7 @@ function livekitService() {
 }
 
 function createCode() {
-  return \`CPX-\${crypto.randomBytes(5).toString('hex').toUpperCase()}\`;
+  return `CPX-${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
 }
 
 export async function POST(request) {
@@ -113,14 +113,14 @@ export async function POST(request) {
         actor_name: actor.username,
         action: 'call_invite_created',
         target: channel.name,
-        details: \`convite para #\${channel.name}; validade=\${expiresMinutes} min\`,
+        details: `convite para #${channel.name}; validade=${expiresMinutes} min`,
       });
     } catch (error) {
       console.error('Call invite activity log:', error);
     }
 
     const origin = new URL(request.url).origin;
-    const link = \`\${origin}/?invite=\${encodeURIComponent(created.code)}&call=\${encodeURIComponent(channel.name)}\`;
+    const link = `${origin}/?invite=${encodeURIComponent(created.code)}&call=${encodeURIComponent(channel.name)}`;
 
     return Response.json({
       success: true,
