@@ -45,6 +45,8 @@ export default function ServidorPage() {
   const [callInviteOpen, setCallInviteOpen] = useState(false);
   const [callInviteBusy, setCallInviteBusy] = useState(false);
   const [generatedCallInvite, setGeneratedCallInvite] = useState(null);
+  const presenceChannelsRef = useRef(new Map());
+  const desiredPresenceRef = useRef(null);
 
   function pushToast(toast) {
     const item = { id: `${Date.now()}-${Math.random()}`, type: toast.type || 'info', title: toast.title || 'CPX', message: toast.message || '', createdAt: Date.now(), unread: true };
@@ -129,30 +131,82 @@ export default function ServidorPage() {
     connect(target);
   }, [cred, channels, pendingCallName]);
 
+  function applyRealtimePresence(channelName, realtimeChannel) {
+    const state = realtimeChannel.presenceState();
+    const participants = Object.values(state).flatMap((entries) => (entries || []).map((entry) => ({
+      identity: entry.identity,
+      name: entry.name || entry.identity?.replace(/^guest:/, '') || 'Participante',
+      role: entry.role || 'membro',
+      isSpeaking: !!entry.isSpeaking,
+      sid: entry.sid || null,
+    }))).filter((participant) => participant.identity);
+    const unique = Array.from(new Map(participants.map((participant) => [participant.identity, participant])).values());
+    setChannelParticipants((current) => ({ ...current, [channelName]: unique }));
+  }
+
   useEffect(() => {
-    if (!cred) return;
-    let mounted = true;
-    async function loadChannelParticipants() {
-      const headers = cred.type === 'session' ? { Authorization: `Bearer ${cred.value}` } : {};
-      try {
-        const response = await fetch('/api/channels/presence', { headers, cache: 'no-store' });
-        const json = await response.json();
-        if (!mounted) return;
-        if (response.status === 503) { setChannelParticipants({}); return; }
-        if (!response.ok) return;
-        setChannelParticipants(json.participants || {});
-      } catch {}
-    }
-    loadChannelParticipants();
-    const interval = window.setInterval(loadChannelParticipants, 5000);
-    window.addEventListener('focus', loadChannelParticipants);
-    return () => { mounted = false; window.clearInterval(interval); window.removeEventListener('focus', loadChannelParticipants); };
-  }, [cred]);
+    if (!cred || !channels.length || !user?.identity) return;
+    let cancelled = false;
+    const subscriptions = new Map();
+    const visibleChannels = user.type === 'guest' && user.guestRoomName
+      ? channels.filter((channel) => channel.name === user.guestRoomName)
+      : channels;
+
+    visibleChannels.forEach((channel) => {
+      const realtimeChannel = supabase.channel('cpx-call-presence:' + channel.id, {
+        config: { presence: { key: user.identity } },
+      });
+      const sync = () => applyRealtimePresence(channel.name, realtimeChannel);
+      realtimeChannel
+        .on('presence', { event: 'sync' }, sync)
+        .on('presence', { event: 'join' }, sync)
+        .on('presence', { event: 'leave' }, sync)
+        .subscribe(async (status) => {
+          if (cancelled || status !== 'SUBSCRIBED') return;
+          sync();
+          const desired = desiredPresenceRef.current;
+          if (desired?.channelId === channel.id) {
+            try { await realtimeChannel.track(desired.payload); } catch {}
+          }
+        });
+      subscriptions.set(channel.name, realtimeChannel);
+    });
+
+    presenceChannelsRef.current = subscriptions;
+    return () => {
+      cancelled = true;
+      subscriptions.forEach((realtimeChannel) => { supabase.removeChannel(realtimeChannel); });
+      presenceChannelsRef.current = new Map();
+    };
+  }, [cred, channels, user?.identity, user?.type]);
+
+  useEffect(() => {
+    const payload = active && token && user?.identity ? {
+      channelId: active.id,
+      payload: {
+        identity: user.identity,
+        name: user.username,
+        role: user.role || 'membro',
+        isSpeaking: false,
+        online_at: new Date().toISOString(),
+      },
+    } : null;
+    desiredPresenceRef.current = payload;
+
+    presenceChannelsRef.current.forEach((realtimeChannel, channelName) => {
+      const shouldTrack = !!payload && channelName === active?.name;
+      if (shouldTrack) realtimeChannel.track(payload.payload).catch(() => {});
+      else realtimeChannel.untrack().catch(() => {});
+    });
+  }, [active?.id, active?.name, token, user?.identity, user?.username, user?.role]);
 
   useEffect(() => {
     if (!cred || cred.type !== 'session') return;
-    const send = () => fetch('/api/presence', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cred.value}` }, body: JSON.stringify({ status: presence }) }).catch(() => {});
-    send(); const interval = window.setInterval(send, 30000); return () => window.clearInterval(interval);
+    fetch('/api/presence', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + cred.value },
+      body: JSON.stringify({ status: presence }),
+    }).catch(() => {});
   }, [cred, presence]);
 
   useEffect(() => {
@@ -275,7 +329,29 @@ export default function ServidorPage() {
       });
     } catch (error) { if (!silent) pushToast({ type: 'error', title: 'Chat', message: error.message }); }
   }
-  useEffect(() => { if (!active || !cred) return; loadMessages(active.id, true); const interval = window.setInterval(() => loadMessages(active.id), 3000); return () => window.clearInterval(interval); }, [active?.id, cred, rightTab, user?.username]);
+  useEffect(() => {
+    if (!active || !cred) return;
+    let cancelled = false;
+    loadMessages(active.id, true);
+    const realtimeChannel = supabase.channel('cpx-chat:' + active.id);
+    realtimeChannel
+      .on('broadcast', { event: 'message_created' }, (event) => {
+        const message = event?.payload?.message;
+        if (!message || cancelled) return;
+        setMessages((current) => {
+          if (current.some((item) => item.id === message.id)) return current;
+          if (message.sender_name !== user?.username && rightTab !== 'chat') {
+            pushToast({ type: 'info', title: 'Nova mensagem', message: message.sender_name + ': ' + message.content.slice(0, 70) });
+          }
+          return [...current, message].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        });
+      })
+      .subscribe();
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(realtimeChannel);
+    };
+  }, [active?.id, cred, rightTab, user?.username]);
 
   async function sendMessage(event) {
     event.preventDefault(); if (!active || !messageText.trim() || !cred) return;
