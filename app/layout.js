@@ -11,9 +11,9 @@ export const metadata = {
   title: 'CPX Call',
   description: 'Comunidade CPX — chamadas de voz e vídeo.',
   icons: {
-    icon: '/favicon.svg',
-    shortcut: '/favicon.svg',
-    apple: '/favicon.svg',
+    icon: '/ComplexoVertical–Roxo.png',
+    shortcut: '/ComplexoVertical–Roxo.png',
+    apple: '/ComplexoVertical–Roxo.png',
   },
 };
 
