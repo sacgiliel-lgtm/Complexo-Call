@@ -1,4 +1,5 @@
 import { getRequestActor, actorResponse } from '../../../lib/requestAuth';
+import { logDiscordEvent } from '../../../lib/discordLogger';
 
 export async function GET(request) {
   const actor = await getRequestActor(request);
@@ -18,6 +19,6 @@ export async function PATCH(request) {
   if (existing) return Response.json({ error: 'Esse nome já está em uso.' }, { status: 409 });
   const { data, error } = await actor.admin.from('profiles').update({ username }).eq('id', actor.id).select('username').single();
   if (error) return Response.json({ error: 'Não foi possível atualizar seu perfil.' }, { status: 500 });
-  try { await actor.admin.from('activity_logs').insert({ actor_id: actor.id, actor_name: username, action: 'profile_updated', target: username }); } catch {}
+  await logDiscordEvent({ action: 'profile_updated', actor: { ...actor, username }, target: username });
   return Response.json({ profile: { username: data.username, role: actor.role } });
 }

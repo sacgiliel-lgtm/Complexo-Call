@@ -235,6 +235,8 @@ function ConnectedCall({ channel, user, rightTab, rightPanelOpen, onRightTab, on
   const previous = useRef(new Set());
   const mounted = useRef(false);
   const reconnecting = String(connectionState || '').toLowerCase().includes('reconnecting');
+  function auditCallEvent(action, target, details = '') { fetch('/api/audit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, channel: channel.name, target, details }), keepalive: true }).catch(() => {}); }
+  const previousScreenSharesRef = useRef(new Set());
   
   useEffect(() => {
     setQualityMap((current) => {
@@ -258,12 +260,35 @@ function ConnectedCall({ channel, user, rightTab, rightPanelOpen, onRightTab, on
   useEffect(() => {
     const current = new Set(participants.map((participant) => participant.identity));
     if (mounted.current) {
-      participants.forEach((participant) => { if (!previous.current.has(participant.identity) && participant.identity !== localParticipant?.identity) onToast?.({ type: 'success', title: 'Alguém entrou na chamada', message: `${displayName(participant)} entrou em #${channel.name}.` }); });
-      previous.current.forEach((identity) => { if (!current.has(identity) && identity !== localParticipant?.identity) onToast?.({ type: 'info', title: 'Participante saiu', message: `${identity.replace(/^guest:/, '')} saiu da chamada #${channel.name}.` }); });
+      participants.forEach((participant) => {
+        if (!previous.current.has(participant.identity) && participant.identity !== localParticipant?.identity) {
+          onToast?.({ type: 'success', title: 'Alguém entrou na chamada', message: `${displayName(participant)} entrou em #${channel.name}.` });
+          auditCallEvent('participant_joined', displayName(participant));
+        }
+      });
+      previous.current.forEach((identity) => {
+        if (!current.has(identity) && identity !== localParticipant?.identity) {
+          onToast?.({ type: 'info', title: 'Participante saiu', message: `${identity.replace(/^guest:/, '')} saiu da chamada #${channel.name}.` });
+          auditCallEvent('participant_left', identity.replace(/^guest:/, ''));
+        }
+      });
     }
     previous.current = current;
     mounted.current = true;
   }, [participants, channel.name, localParticipant?.identity, onToast]);
+  useEffect(() => {
+    const current = new Set(screenTracks.map((trackRef) => trackRef.participant.identity));
+    current.forEach((identity) => {
+      if (!previousScreenSharesRef.current.has(identity)) {
+        const participant = participants.find((item) => item.identity === identity);
+        auditCallEvent('screen_share_started', displayName(participant), 'Compartilhamento de tela iniciado.');
+      }
+    });
+    previousScreenSharesRef.current.forEach((identity) => {
+      if (!current.has(identity)) auditCallEvent('screen_share_stopped', identity.replace(/^guest:/, ''), 'Compartilhamento de tela encerrado.');
+    });
+    previousScreenSharesRef.current = current;
+  }, [screenTracks, participants]);
   useEffect(() => { if (focusedIdentity && !participants.some((participant) => participant.identity === focusedIdentity)) setFocusedIdentity(null); }, [focusedIdentity, participants]);
   useEffect(() => {
     if (reconnecting) {

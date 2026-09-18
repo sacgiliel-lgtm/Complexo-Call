@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { RoomServiceClient } from 'livekit-server-sdk';
 import { getRequestActor, actorResponse } from '../../../lib/requestAuth';
+import { logDiscordEvent } from '../../../lib/discordLogger';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -104,17 +105,7 @@ export async function POST(request) {
       return Response.json({ error: 'Não foi possível gerar um convite único. Tente novamente.' }, { status: 503 });
     }
 
-    try {
-      await actor.admin.from('activity_logs').insert({
-        actor_id: actor.id,
-        actor_name: actor.username,
-        action: 'call_invite_created',
-        target: channel.name,
-        details: `convite para #${channel.name}; validade=${expiresMinutes} min`,
-      });
-    } catch (error) {
-      console.error('Call invite activity log:', error);
-    }
+    await logDiscordEvent({ action: 'call_invite_created', actor, target: channel.name, channel: channel.name, details: `Validade: ${expiresMinutes} min` });
 
     const origin = new URL(request.url).origin;
     const link = `${origin}/?invite=${encodeURIComponent(created.code)}&call=${encodeURIComponent(channel.name)}`;

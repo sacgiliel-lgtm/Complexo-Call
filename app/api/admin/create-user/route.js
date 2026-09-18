@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { getSupabaseAdmin } from '../../../../lib/supabaseAdmin';
+import { logDiscordEvent } from '../../../../lib/discordLogger';
 
 export async function POST(request) {
   try {
@@ -28,7 +29,7 @@ export async function POST(request) {
       await admin.auth.admin.deleteUser(newUser.user.id);
       throw profileError;
     }
-    try { await admin.from('activity_logs').insert({ actor_id: requester.id, actor_name: requesterProfile.username || requester.email || 'Admin', action: 'user_created', target: username, details: `cargo=${role}; email=${email}` }); } catch (logError) { console.error('Create user log:', logError); }
+    await logDiscordEvent({ action: 'user_created', actor: { ...requesterProfile, id: requester.id, email: requester.email }, target: username, details: `Cargo: ${role}; e-mail: ${email}` });
     return Response.json({ success: true, user: { id: newUser.user.id, username, role }, temporaryPassword: password });
   } catch (error) {
     console.error('Create user:', error);

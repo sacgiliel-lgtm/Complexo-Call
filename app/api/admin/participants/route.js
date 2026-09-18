@@ -1,5 +1,6 @@
 import { RoomServiceClient } from 'livekit-server-sdk';
 import { getRequestActor, actorResponse } from '../../../../lib/requestAuth';
+import { logDiscordEvent } from '../../../../lib/discordLogger';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -79,11 +80,7 @@ export async function POST(request) {
     await service.moveParticipant(sourceRoom, identity, destinationRoom);
 
     const displayName = participant.name || identity;
-    try {
-      await actor.admin.from('activity_logs').insert({ actor_id: actor.id, actor_name: actor.username, action: 'participant_moved', target: displayName, details: `De #${sourceRoom} para #${destinationRoom}` });
-    } catch (error) {
-      console.error('Participant move log:', error);
-    }
+    await logDiscordEvent({ action: 'participant_moved', actor, target: displayName, channel: sourceRoom, details: `Destino: #${destinationRoom}` });
     return Response.json({ ok: true, participant: { identity, name: displayName }, sourceRoom, destinationRoom });
   } catch (error) {
     console.error('Participants POST:', error);
