@@ -4,7 +4,6 @@ async function getChannel(admin, id, role, guestRoomName = null) {
   const { data: channel, error } = await admin.from('channels').select('id,name,is_active,guest_access').eq('id', id).maybeSingle();
   if (error) throw error;
   if (!channel || !channel.is_active) return { error: Response.json({ error: 'Canal indisponível.' }, { status: 404 }) };
-  if (role === 'convidado' && !channel.guest_access) return { error: Response.json({ error: 'Convidados não têm acesso a este canal.' }, { status: 403 }) };
   if (role === 'convidado' && guestRoomName && channel.name !== guestRoomName) {
     return { error: Response.json({ error: 'Este convite dá acesso somente à call para a qual você foi convidado.' }, { status: 403 }) };
   }
