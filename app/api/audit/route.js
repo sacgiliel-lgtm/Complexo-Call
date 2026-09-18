@@ -6,6 +6,7 @@ const ALLOWED = new Set([
   'participant_left',
   'screen_share_started',
   'screen_share_stopped',
+  'error',
 ]);
 
 export async function POST(request) {
