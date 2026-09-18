@@ -155,7 +155,7 @@ function useLobbyPreview({ audio, video, audioDevice, cameraDevice, onDevices, o
   return { videoRef, micLevel };
 }
 
-export function CallExperience({ token, serverUrl, channel, user, rightTab, rightPanelOpen = true, onRightTab, messages, messageText, setMessageText, onSendMessage, onToast, onDisconnect, onModerate, participantFilter = '', theme = 'cpx' }) {
+export function CallExperience({ token, serverUrl, channel, user, rightTab, rightPanelOpen = true, onRightTab, messages, messageText, setMessageText, onSendMessage, onToast, onDisconnect, onModerate, participantFilter = '' }) {
   const [ready, setReady] = useState(false);
   const [joinAudio, setJoinAudio] = useState(true);
   const [joinVideo, setJoinVideo] = useState(false);
@@ -206,7 +206,7 @@ export function CallExperience({ token, serverUrl, channel, user, rightTab, righ
     />;
   }
 
-  return <div className={`${styles.root} ${theme === 'light' ? styles.light : ''}`}>
+  return <div className={styles.root}>
     <LiveKitRoom
       token={token}
       serverUrl={serverUrl}

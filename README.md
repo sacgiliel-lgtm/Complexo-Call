@@ -1,5 +1,28 @@
 # CPX Call
 
+Interface de chamadas de voz/vídeo para a comunidade CPX, usando Next.js, Supabase e LiveKit.
+
+## Interface
+
+A aplicação agora inclui:
+
+- tela de entrada com login e convite, feedback visual e responsividade;
+- workspace responsivo com canais agrupados por categoria;
+- lista dinâmica de participantes e estados de microfone/câmera;
+- controles de microfone, câmera, compartilhamento de tela e saída;
+- indicador de estado/qualidade da conexão LiveKit;
+- chat persistente por canal com pesquisa de mensagens;
+- presença online, ausente e não perturbe;
+- notificações/toasts com histórico local e sons configuráveis;
+- busca de canais e atalhos de teclado;
+- tema CPX escuro como padrão;
+- perfil editável para membros;
+- moderação de participantes por administradores;
+- Centro de Comando com métricas, usuários, convites, canais, configurações e atividade;
+- convites temporários com código protegido por hash;
+- layout otimizado para desktop e celular.
+
+PWA não faz parte desta versão.
 Aplicação de chamadas de voz e vídeo para a comunidade CPX — um "Discord por dentro", construído com Next.js, Supabase e LiveKit. Suporta contas de membro/administrador com login, além de acesso temporário por código de convite para convidados.
 
 ---
