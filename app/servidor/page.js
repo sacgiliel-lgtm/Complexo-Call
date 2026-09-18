@@ -384,10 +384,12 @@ export default function ServidorPage() {
     </Modal>
 
     <Modal open={settingsOpen} title="Preferências do CPX" onClose={() => setSettingsOpen(false)}>
-      <div className="field"><label><div className="toggle-row"><div><strong>Sons da interface</strong><span>Notificações discretas ao entrar, sair ou receber eventos.</span></div><input className="switch" type="checkbox" checked={sounds} onChange={(e) => setSounds(e.target.checked)} /></div>
-      <div className="toggle-row"><div><strong>Notificações</strong><span>Pressione N para abrir o centro de notificações.</span></div><Badge tone="green">Ativo</Badge></div>
-      <div className="toggle-row"><div><strong>Atalhos de chamada</strong><span>M = microfone · C = câmera · S = tela · Esc = sair.</span></div><Badge tone="green">Ativo</Badge></div>
-      <div className="modal-actions"><button className="primary-btn" onClick={() => setSettingsOpen(false)}>Fechar</button></div>
+      <div className="field">
+        <div className="toggle-row"><div><strong>Sons da interface</strong><span>Notificações discretas ao entrar, sair ou receber eventos.</span></div><input className="switch" type="checkbox" checked={sounds} onChange={(e) => setSounds(e.target.checked)} /></div>
+        <div className="toggle-row"><div><strong>Notificações</strong><span>Pressione N para abrir o centro de notificações.</span></div><Badge tone="green">Ativo</Badge></div>
+        <div className="toggle-row"><div><strong>Atalhos de chamada</strong><span>M = microfone · C = câmera · S = tela · Esc = sair.</span></div><Badge tone="green">Ativo</Badge></div>
+        <div className="modal-actions"><button type="button" className="primary-btn" onClick={() => setSettingsOpen(false)}>Fechar</button></div>
+      </div>
     </Modal>
     <ToastStack toasts={toasts} onDismiss={(id) => setToasts((current) => current.filter((toast) => toast.id !== id))} />
   </main>;
