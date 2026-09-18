@@ -15,7 +15,7 @@ A aplicação agora inclui:
 - presença online, ausente e não perturbe;
 - notificações/toasts com histórico local e sons configuráveis;
 - busca de canais e atalhos de teclado;
-- tema CPX escuro e tema claro;
+- tema CPX escuro como padrão;
 - perfil editável para membros;
 - moderação de participantes por administradores;
 - Centro de Comando com métricas, usuários, convites, canais, configurações e atividade;
