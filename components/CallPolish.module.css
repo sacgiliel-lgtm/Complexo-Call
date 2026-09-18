@@ -66,3 +66,85 @@
 .emptyCardHint{margin-top:7px;color:#665b6e;font-size:7px}
 @keyframes sendSpin{to{transform:rotate(360deg)}}
 @media(max-width:520px){.chatError{font-size:6.5px}.newMessagesButton{font-size:7px}.screenBackButton{top:8px;left:8px}}
+
+/* Immersive screen-share focus. */
+.screenFocus{
+  position:fixed;
+  inset:0;
+  z-index:200;
+  display:grid;
+  place-items:center;
+  background:#000;
+  overflow:hidden;
+}
+.screenFocus:fullscreen{background:#000}
+.screenFocus :global(video){
+  width:100%;
+  height:100%;
+  display:block;
+  object-fit:contain;
+  background:#000;
+}
+.screenFocusControls{
+  position:absolute;
+  top:18px;
+  right:18px;
+  z-index:5;
+  display:flex;
+  gap:7px;
+  opacity:1;
+  transition:opacity .2s ease,transform .2s ease;
+}
+.screenFocusControls[data-visible="false"]{
+  opacity:0;
+  pointer-events:none;
+  transform:translateY(-6px);
+}
+.screenControlButton{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  min-height:36px;
+  padding:0 11px;
+  border:1px solid rgba(255,255,255,.13);
+  border-radius:10px;
+  background:rgba(10,8,13,.78);
+  backdrop-filter:blur(14px);
+  color:#eee8f2;
+  font-size:9px;
+  font-weight:850;
+  cursor:pointer;
+}
+.screenControlButton:hover{background:rgba(155,92,255,.18);border-color:rgba(155,92,255,.4)}
+.screenFocusLabel{
+  position:absolute;
+  left:50%;
+  bottom:18px;
+  z-index:4;
+  transform:translateX(-50%);
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:7px 10px;
+  border:1px solid rgba(255,255,255,.09);
+  border-radius:999px;
+  background:rgba(8,6,11,.58);
+  backdrop-filter:blur(12px);
+  color:#c9c0ce;
+  font-size:8px;
+  pointer-events:none;
+  transition:opacity .2s ease;
+}
+.screenFocusControls[data-visible="false"] + .screenFocusLabel{opacity:0}
+.panelHiddenForScreen{display:none}
+.screenCard{cursor:pointer}
+.screenCard .screenLabel{pointer-events:none}
+@media(max-width:520px){
+  .screenFocusControls{top:10px;right:10px}
+  .screenControlButton{width:36px;min-height:36px;padding:0;justify-content:center}
+  .screenControlButton span{display:none}
+  .screenFocusLabel{bottom:10px;max-width:calc(100% - 20px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+}
+@media(prefers-reduced-motion:reduce){
+  .screenFocusControls,.screenFocusLabel{transition:none}
+}
