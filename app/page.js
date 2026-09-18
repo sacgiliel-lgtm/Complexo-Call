@@ -19,6 +19,10 @@ export default function Home() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [forcePasswordChange, setForcePasswordChange] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -28,8 +32,19 @@ export default function Home() {
       if (inviteParam) { setCode(inviteParam.toUpperCase()); setMode('invite'); }
       const { data: { session } } = await supabase.auth.getSession();
       if (!mounted) return;
-      if (session) router.replace('/servidor');
-      else setLoading(false);
+      if (session) {
+        const { data: profile } = await supabase.from('profiles').select('status,must_change_password').eq('id', session.user.id).single();
+        if (profile?.status === 'suspenso') {
+          await supabase.auth.signOut();
+          setError('Esta conta está suspensa.');
+          setLoading(false);
+        } else if (profile?.must_change_password) {
+          setForcePasswordChange(true);
+          setLoading(false);
+        } else {
+          router.replace('/servidor');
+        }
+      } else setLoading(false);
     })();
     return () => { mounted = false; };
   }, [router]);
@@ -40,9 +55,42 @@ export default function Home() {
     event.preventDefault(); setSubmitting(true); setError(''); setNotice('');
     const { data, error: authError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     if (authError || !data.user) { setError('E-mail ou senha inválidos. Confira os dados e tente novamente.'); setSubmitting(false); return; }
-    const { data: profile } = await supabase.from('profiles').select('status').eq('id', data.user.id).single();
+    const { data: profile } = await supabase.from('profiles').select('status,must_change_password').eq('id', data.user.id).single();
     if (!profile || profile.status === 'suspenso') { await supabase.auth.signOut(); setError('Esta conta está suspensa ou não possui um perfil ativo.'); setSubmitting(false); return; }
+    if (profile.must_change_password) {
+      setForcePasswordChange(true);
+      setSubmitting(false);
+      return;
+    }
     router.push('/servidor');
+  }
+
+  async function changePassword(event) {
+    event.preventDefault();
+    setError('');
+    setNotice('');
+    if (newPassword.length < 8) return setError('A nova senha deve ter pelo menos 8 caracteres.');
+    if (newPassword !== confirmPassword) return setError('As senhas não conferem.');
+    setSubmitting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Sua sessão expirou. Entre novamente.');
+      const response = await fetch('/api/profile/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+        body: JSON.stringify({ newPassword })
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error || 'Não foi possível definir a senha.');
+      setForcePasswordChange(false);
+      setNewPassword('');
+      setConfirmPassword('');
+      router.replace('/servidor');
+    } catch (changeError) {
+      setError(changeError.message);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function invite(event) {
@@ -57,6 +105,20 @@ export default function Home() {
   }
 
   if (loading) return <main className="login-page"><Spinner label="Preparando seu acesso..." /></main>;
+
+  if (forcePasswordChange) return <main className="login-page">
+    <section className="cpx-home-auth" style={{ width: 'min(100%, 470px)', margin: 'auto' }}>
+      <div className="cpx-home-auth-inner">
+        <div className="cpx-home-auth-head"><span className="cpx-home-auth-label">Primeiro acesso</span><h2>Defina sua senha</h2><p>Esta conta foi criada com uma senha temporária. Antes de continuar, escolha uma senha definitiva.</p></div>
+        {error && <div className="error-box" role="alert">{error}</div>}
+        <form onSubmit={changePassword} style={{ display: 'grid', gap: 13 }}>
+          <div className="field"><label htmlFor="new-password">Nova senha</label><div className="input-wrap"><input id="new-password" className="input" type={showNewPassword ? 'text' : 'password'} autoComplete="new-password" placeholder="Crie uma senha segura" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required minLength={8} autoFocus /><button type="button" className="input-action" onClick={() => setShowNewPassword((value) => !value)} aria-label={showNewPassword ? 'Ocultar senha' : 'Mostrar senha'}><Icon name={showNewPassword ? 'eyeOff' : 'eye'} size={16} /></button></div><span className="cpx-home-helper" style={{ textAlign: 'left' }}>Use pelo menos 8 caracteres e evite reutilizar senhas de outros serviços.</span></div>
+          <div className="field"><label htmlFor="confirm-password">Confirmar nova senha</label><input id="confirm-password" className="input" type="password" autoComplete="new-password" placeholder="Digite a senha novamente" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required minLength={8} /></div>
+          <button className="primary-btn cpx-home-primary" disabled={submitting}>{submitting ? <Spinner label="Salvando..." /> : 'Definir senha e continuar'}</button>
+        </form>
+      </div>
+    </section>
+  </main>;
 
   return <main className="cpx-home">
     <div className="cpx-home-shell">
