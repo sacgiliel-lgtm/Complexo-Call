@@ -8,7 +8,7 @@ function livekitHost() {
 export async function POST(request) {
   const actor = await getRequestActor(request);
   if (!actor.ok) return actorResponse(actor);
-  if (actor.role !== 'admin') return Response.json({ error: 'Apenas administradores podem moderar chamadas.' }, { status: 403 });
+  if (!['admin', 'membro'].includes(actor.role)) return Response.json({ error: 'Apenas membros e administradores podem moderar chamadas.' }, { status: 403 });
   const body = await request.json().catch(() => ({}));
   const room = String(body.room || '');
   const identity = String(body.identity || '');
