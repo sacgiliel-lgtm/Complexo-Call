@@ -1,13 +1,13 @@
 'use client';
 
+import { supabase } from '../../lib/supabaseClient';
+
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
 import { Icon, Avatar, Badge, EmptyState, Modal, Spinner, ToastStack } from '../../components/ui';
 import { RoomExperience } from '../../components/RoomExperience';
 import '@livekit/components-styles';
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 const NOTIFICATION_KEY = 'cpx-notifications';
 
 export default function ServidorPage() {
