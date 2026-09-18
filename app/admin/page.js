@@ -25,7 +25,7 @@ export default function AdminDashboard() {
   const [newUser, setNewUser] = useState({ email: '', username: '', password: '', role: 'membro' });
   const [inviteForm, setInviteForm] = useState({ guestName: '', expiresMinutes: 30 });
   const [channelForm, setChannelForm] = useState({ id: '', name: '', category: 'GERAL', description: '', icon: 'voice', sort_order: 0, guest_access: false, is_waiting_room: false, is_active: true });
-  const [settingsForm, setSettingsForm] = useState({ maintenance_mode: false, discord_logs: true, max_users: 'ilimitado', call_invite_enabled: true, call_invite_expires_minutes: 60, call_invite_guest_name: 'Convidado' });
+  const [settingsForm, setSettingsForm] = useState({ maintenance_mode: false, discord_logs: true, max_users: 'ilimitado', call_invite_enabled: true, call_invite_expires_minutes: 60 });
 
   function toast(message, type = 'success', title = 'Centro de comando') {
     const item = { id: `${Date.now()}-${Math.random()}`, message, type, title };
@@ -49,7 +49,6 @@ export default function AdminDashboard() {
         max_users: json.settings?.max_users ?? 'ilimitado',
         call_invite_enabled: json.settings?.call_invite_enabled !== false,
         call_invite_expires_minutes: Number(json.settings?.call_invite_expires_minutes) || 60,
-        call_invite_guest_name: json.settings?.call_invite_guest_name || 'Convidado',
       });
     } catch (error) { toast(error.message, 'error', 'Falha ao carregar'); }
     finally { setLoading(false); }
@@ -100,7 +99,6 @@ export default function AdminDashboard() {
       maxUsers: settingsForm.max_users,
       callInviteEnabled: settingsForm.call_invite_enabled,
       callInviteExpiresMinutes: Number(settingsForm.call_invite_expires_minutes),
-      callInviteGuestName: settingsForm.call_invite_guest_name,
     }, 'Configurações salvas.');
   }
 
@@ -128,9 +126,8 @@ export default function AdminDashboard() {
       <div className="admin-invite-settings">
         <div className="admin-invite-settings-head"><div><h3>Convites criados dentro das calls</h3><span className="helper">Defina as regras usadas quando um membro clicar em “Convidar” dentro de uma call.</span></div><Badge tone={settingsForm.call_invite_enabled ? 'green' : 'neutral'}>{settingsForm.call_invite_enabled ? 'Permitido' : 'Desativado'}</Badge></div>
         <div className="toggle-row"><div><strong>Permitir criação por membros</strong><span>O botão só aparece para membros que já estiverem dentro da call.</span></div><input className="switch" type="checkbox" checked={settingsForm.call_invite_enabled} onChange={(e) => setSettingsForm({ ...settingsForm, call_invite_enabled: e.target.checked })} /></div>
-        <div className="form-grid two">
+        <div className="form-grid">
           <div className="field"><label>Validade padrão</label><select className="input" value={settingsForm.call_invite_expires_minutes} onChange={(e) => setSettingsForm({ ...settingsForm, call_invite_expires_minutes: Number(e.target.value) })}><option value={15}>15 minutos</option><option value={30}>30 minutos</option><option value={60}>1 hora</option><option value={180}>3 horas</option><option value={360}>6 horas</option><option value={1440}>24 horas</option><option value={10080}>7 dias</option></select></div>
-          <div className="field"><label>Nome padrão do convidado</label><input className="input" maxLength={32} value={settingsForm.call_invite_guest_name} onChange={(e) => setSettingsForm({ ...settingsForm, call_invite_guest_name: e.target.value })} placeholder="Convidado" /></div>
         </div>
         <div className="admin-invite-note"><Icon name="shield" size={15} /><span>O convite fica vinculado à call onde foi criado. A sala precisa estar ativa e com <strong>Convidado</strong> habilitado.</span></div>
       </div>

@@ -13,6 +13,7 @@ export default function Home() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
+  const [guestName, setGuestName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -45,9 +46,9 @@ export default function Home() {
   }
 
   async function invite(event) {
-    event.preventDefault(); if (!code.trim()) return; setSubmitting(true); setError(''); setNotice('');
+    event.preventDefault(); if (!code.trim() || !guestName.trim()) return; setSubmitting(true); setError(''); setNotice('');
     try {
-      const response = await fetch('/api/validate-invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: code.trim() }) });
+      const response = await fetch('/api/validate-invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: code.trim(), guestName: guestName.trim() }) });
       const json = await response.json(); if (!response.ok) throw new Error(json.error || 'Convite inválido.');
       setNotice('Convite validado. Entrando no CPX...');
       router.push(json.roomName ? `/servidor?call=${encodeURIComponent(json.roomName)}` : '/servidor');
@@ -83,8 +84,9 @@ export default function Home() {
               <div className="field"><label htmlFor="password">Senha</label><div className="input-wrap"><input id="password" className="input" type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Sua senha" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} /><button type="button" className="input-action" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}><Icon name={showPassword ? 'eyeOff' : 'eye'} size={16} /></button></div></div>
               <button className="primary-btn cpx-home-primary" disabled={submitting}>{submitting ? <Spinner label="Entrando..." /> : <><Icon name="phone" size={16} /> Acessar minha sala</>}</button><span className="cpx-home-helper">A sessão fica disponível enquanto sua conta estiver autorizada.</span>
             </form> : <form onSubmit={invite} style={{ display: 'grid', gap: 13 }}>
+              <div className="field"><label htmlFor="guest-name">Seu nome</label><input id="guest-name" className="input" type="text" autoComplete="name" maxLength={32} placeholder="Digite seu nome" value={guestName} onChange={(e) => setGuestName(e.target.value)} autoFocus={mode === 'invite'} required /><span className="cpx-home-helper" style={{ textAlign: 'left' }}>Digite o nome que será exibido para as outras pessoas na call.</span></div>
               <div className="field"><label htmlFor="invite">Código de acesso</label><input id="invite" className="input" inputMode="text" autoCapitalize="characters" autoComplete="off" placeholder="CPX-XXXXXXXXXX" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} required /><span className="cpx-home-helper" style={{ textAlign: 'left' }}>Quando você abrir um link de convite, o código será preenchido automaticamente.</span></div>
-              <button className="primary-btn cpx-home-primary" disabled={submitting}>{submitting ? <Spinner label="Conferindo..." /> : <><Icon name="shield" size={16} /> Entrar com convite</>}</button>
+              <button className="primary-btn cpx-home-primary" disabled={submitting || !guestName.trim()}>{submitting ? <Spinner label="Conferindo..." /> : <><Icon name="shield" size={16} /> Entrar com convite</>}</button>
             </form>}
             <div className="cpx-home-footer"><span>CPX Call</span><strong>Conecte · converse · compartilhe</strong></div>
           </div>

@@ -145,7 +145,6 @@ export async function POST(request) {
     if (action === 'settings') {
       const maxUsers = body.maxUsers === null || body.maxUsers === 'ilimitado' ? null : Math.max(1, Math.min(Number(body.maxUsers), 1000));
       const callInviteExpiresMinutes = Math.max(5, Math.min(Number(body.callInviteExpiresMinutes) || 60, 10080));
-      const callInviteGuestName = String(body.callInviteGuestName || 'Convidado').trim().slice(0, 32) || 'Convidado';
       const payload = {
         id: 1,
         maintenance_mode: !!body.maintenanceMode,
@@ -153,7 +152,6 @@ export async function POST(request) {
         max_users: maxUsers,
         call_invite_enabled: body.callInviteEnabled !== false,
         call_invite_expires_minutes: callInviteExpiresMinutes,
-        call_invite_guest_name: callInviteGuestName,
         updated_at: new Date().toISOString()
       };
       const { error } = await admin.from('server_settings').upsert(payload);
