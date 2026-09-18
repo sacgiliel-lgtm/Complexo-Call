@@ -133,7 +133,7 @@ export default function ServidorPage() {
       } catch (error) { if (mounted) pushToast({ type: 'error', title: 'Servidor', message: error.message || 'Falha ao consultar os canais.' }); }
     }
     loadChannels();
-    const interval = window.setInterval(loadChannels, 20000);
+    const interval = window.setInterval(loadChannels, 10000);
     return () => { mounted = false; window.clearInterval(interval); };
   }, [cred]);
 
