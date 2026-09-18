@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { getRequestActor, actorResponse } from '../../../lib/requestAuth';
+import { getRequestActor, actorResponse } from '../../../../lib/requestAuth';
 
 function validPassword(value) {
   return typeof value === 'string' && value.length >= 8 && value.length <= 128;
