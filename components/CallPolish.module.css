@@ -44,3 +44,25 @@
   .qualityHint{font-size:6.5px}
   .qualityRow{font-size:8px}
 }
+
+/* Chat, screen sharing and empty-state refinements. */
+.chatHeaderButton{position:relative}
+.unreadBadge{position:absolute;right:-3px;top:-4px;min-width:16px;height:16px;padding:0 4px;display:grid;place-items:center;border-radius:999px;background:#ed1972;color:#fff;font-size:7px;font-weight:900;border:2px solid #0c0910}
+.unreadTab{display:inline-grid!important;place-items:center;min-width:20px!important;height:17px!important;padding:0 5px!important;margin-left:5px!important;background:rgba(237,25,114,.16)!important;color:#ff91b4!important}
+.newMessagesButton{align-self:center;display:flex;align-items:center;gap:6px;margin:5px 8px 8px;padding:7px 10px;border:1px solid rgba(155,92,255,.25);border-radius:9px;background:rgba(155,92,255,.08);color:#cdb6ff;font-size:8px;font-weight:850;cursor:pointer}
+.newMessagesButton:hover{background:rgba(155,92,255,.14);border-color:rgba(155,92,255,.4)}
+.chatError{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 8px 7px;padding:7px 9px;border:1px solid rgba(243,87,104,.18);border-radius:9px;background:rgba(243,87,104,.07);color:#ff9ca6;font-size:7px}
+.chatError button{border:0;background:transparent;color:#d4baff;font-size:7px;font-weight:900;cursor:pointer}
+.sendSpinner{width:12px;height:12px;display:block;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:sendSpin .7s linear infinite}
+.screenStage{position:relative}
+.screenStageFocused{padding:2px}
+.screenCard{position:relative;min-width:0;overflow:hidden;border:1px solid rgba(255,255,255,.08);border-radius:15px;background:#09070d;padding:0;cursor:pointer;text-align:left;color:inherit}
+.screenCard:hover{border-color:rgba(155,92,255,.35)}
+.screenCard :global(video){display:block;width:100%;height:100%;object-fit:contain}
+.screenCardFocused{height:100%;cursor:default}
+.screenBackButton{position:absolute;top:12px;left:12px;z-index:5;display:flex;align-items:center;gap:5px;padding:7px 9px;border:1px solid rgba(255,255,255,.1);border-radius:8px;background:rgba(10,7,14,.78);backdrop-filter:blur(10px);color:#ddd4e5;font-size:8px;font-weight:850;cursor:pointer}
+.screenBackButton:hover{background:rgba(155,92,255,.15)}
+.screenLabel span{margin-left:auto;color:#c6a9ff;font-size:7px;font-weight:900}
+.emptyCardHint{margin-top:7px;color:#665b6e;font-size:7px}
+@keyframes sendSpin{to{transform:rotate(360deg)}}
+@media(max-width:520px){.chatError{font-size:6.5px}.newMessagesButton{font-size:7px}.screenBackButton{top:8px;left:8px}}
