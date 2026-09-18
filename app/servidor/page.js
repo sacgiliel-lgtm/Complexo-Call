@@ -36,7 +36,6 @@ export default function ServidorPage() {
   const [moveTarget, setMoveTarget] = useState('');
   const [profileName, setProfileName] = useState('');
   const [presence, setPresence] = useState('online');
-  const [theme, setTheme] = useState('cpx');
   const [sounds, setSounds] = useState(true);
   const [messages, setMessages] = useState([]);
   const [messageText, setMessageText] = useState('');
@@ -66,16 +65,10 @@ export default function ServidorPage() {
       const savedNotifications = JSON.parse(localStorage.getItem(NOTIFICATION_KEY) || '[]');
       setNotifications(Array.isArray(savedNotifications) ? savedNotifications : []);
     } catch {}
-    const savedTheme = localStorage.getItem('cpx-theme');
     const savedSounds = localStorage.getItem('cpx-sounds');
-    if (savedTheme) setTheme(savedTheme);
     if (savedSounds !== null) setSounds(savedSounds !== 'false');
   }, []);
 
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme === 'light' ? 'light' : '';
-    localStorage.setItem('cpx-theme', theme);
-  }, [theme]);
   useEffect(() => { localStorage.setItem('cpx-sounds', String(sounds)); }, [sounds]);
 
   useEffect(() => {
@@ -355,22 +348,22 @@ export default function ServidorPage() {
     <section className="main-area">
       <header className="topbar"><button className="icon-btn mobile-menu" onClick={() => setSidebarOpen(true)} aria-label="Abrir canais"><Icon name="menu" /></button><div className="topbar-channel">{active ? <><span className="hash">#</span><strong>{active.name}</strong><span className="topbar-sub">{active.description || 'Canal de voz e vídeo'}</span></> : <><span className="topbar-brand-mark" aria-hidden="true" /><strong>Área principal</strong><span className="topbar-sub">Selecione um canal para começar</span></>}</div><span className="topbar-spacer" /><div className="search-box"><Icon name="search" size={16} /><input ref={searchRef} className="input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar canais...  Ctrl+K" aria-label="Buscar canais" /></div><button className={`icon-btn topbar-alert ${unreadCount ? '' : 'empty'}`} onClick={() => { setNotificationsOpen(true); markNotificationsRead(); }} aria-label={`Notificações${unreadCount ? `, ${unreadCount} novas` : ''}`}><Icon name="bell" /></button><button className="icon-btn mobile-only" onClick={() => handleRightTab('participants', !rightOpen)} aria-label="Participantes"><Icon name="users" /></button><button className="icon-btn" onClick={() => handleRightTab('chat')} aria-label="Chat"><Icon name="chat" /></button><button className="icon-btn" onClick={() => setSettingsOpen(true)} aria-label="Configurações"><Icon name="settings" /></button></header>
       {connecting && <div className="call-loading"><Spinner label="Estabelecendo conexão segura..." /></div>}
-      {!active || !token ? <div className="main-content"><section className="call-area"><div className="call-empty"><div className="empty-card"><div className="empty-icon"><Icon name="phone" size={28} /></div><h2 style={{ margin: '0 0 8px' }}>Seu espaço no CPX</h2><p style={{ color: 'var(--muted)', lineHeight: 1.6, fontSize: 13 }}>{maintenance ? 'O servidor está em manutenção. Usuários sem permissão de administrador não podem iniciar novas chamadas neste momento.' : 'Escolha um canal na lateral para entrar na chamada. Você poderá conversar por texto, usar câmera, compartilhar a tela e controlar seu áudio.'}</p><div style={{ marginTop: 17, display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}><Badge tone="purple">Voz</Badge><Badge tone="purple">Vídeo</Badge><Badge tone="purple">Chat</Badge><Badge tone="green">Acesso controlado</Badge></div></div></div></section></div> : <RoomExperience token={token} serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} channel={active} user={user} rightTab={rightTab} rightPanelOpen={rightOpen} onRightTab={handleRightTab} messages={messages} messageText={messageText} setMessageText={setMessageText} onSendMessage={sendMessage} onToast={pushToast} onDisconnect={disconnect} onModerate={moderate} onCreateInvite={openCallInvite} participantFilter={rightTab === 'participants' ? search : ''} theme={theme === 'light' ? 'theme-light' : 'cpx'} />}
+      {!active || !token ? <div className="main-content"><section className="call-area"><div className="call-empty"><div className="empty-card"><div className="empty-icon"><Icon name="phone" size={28} /></div><h2 style={{ margin: '0 0 8px' }}>Seu espaço no CPX</h2><p style={{ color: 'var(--muted)', lineHeight: 1.6, fontSize: 13 }}>{maintenance ? 'O servidor está em manutenção. Usuários sem permissão de administrador não podem iniciar novas chamadas neste momento.' : 'Escolha um canal na lateral para entrar na chamada. Você poderá conversar por texto, usar câmera, compartilhar a tela e controlar seu áudio.'}</p><div style={{ marginTop: 17, display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}><Badge tone="purple">Voz</Badge><Badge tone="purple">Vídeo</Badge><Badge tone="purple">Chat</Badge><Badge tone="green">Acesso controlado</Badge></div></div></div></section></div> : <RoomExperience token={token} serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} channel={active} user={user} rightTab={rightTab} rightPanelOpen={rightOpen} onRightTab={handleRightTab} messages={messages} messageText={messageText} setMessageText={setMessageText} onSendMessage={sendMessage} onToast={pushToast} onDisconnect={disconnect} onModerate={moderate} onCreateInvite={openCallInvite} participantFilter={rightTab === 'participants' ? search : ''} />}
     </section>
 
     <Modal open={moveParticipantOpen} title="Mover participante" onClose={() => { if (!movingParticipant) { setMoveParticipantOpen(false); setMoveSelection(null); } }} width={480}>
       <div style={{ display: 'grid', gap: 14 }}>
         {moveSelection && <div className="profile-identity"><Avatar name={moveSelection.name} size="lg" status="online" /><div><strong>{moveSelection.name}</strong><span>Atual: #{moveSelection.sourceRoom}</span></div></div>}
-        <div className="field"><label>Mover para outra call</label><select className="input" value={moveTarget} onChange={(event) => setMoveTarget(event.target.value)} disabled={movingParticipant}>{channels.filter((channel) => channel.name !== moveSelection?.sourceRoom).map((channel) => <option key={channel.id} value={channel.name}># {channel.name}</option>)}</select></div>
-        <span className="helper">O participante será transferido da call atual para a call escolhida.</span>
-        <div className="modal-actions"><button type="button" className="ghost-btn" onClick={() => { setMoveParticipantOpen(false); setMoveSelection(null); }} disabled={movingParticipant}>Cancelar</button><button type="button" className="primary-btn" onClick={moveSelectedParticipant} disabled={movingParticipant || !moveSelection || !moveTarget}>{movingParticipant ? <Spinner label="Movendo..." /> : <><Icon name="chevron" size={15} /> Mover para call</>}</button></div>
+        <div className="field"><label>Mover para outra chamada</label><select className="input" value={moveTarget} onChange={(event) => setMoveTarget(event.target.value)} disabled={movingParticipant}>{channels.filter((channel) => channel.name !== moveSelection?.sourceRoom).map((channel) => <option key={channel.id} value={channel.name}># {channel.name}</option>)}</select></div>
+        <span className="helper">O participante será transferido da chamada atual para a chamada escolhida.</span>
+        <div className="modal-actions"><button type="button" className="ghost-btn" onClick={() => { setMoveParticipantOpen(false); setMoveSelection(null); }} disabled={movingParticipant}>Cancelar</button><button type="button" className="primary-btn" onClick={moveSelectedParticipant} disabled={movingParticipant || !moveSelection || !moveTarget}>{movingParticipant ? <Spinner label="Movendo..." /> : <><Icon name="chevron" size={15} /> Mover para chamada</>}</button></div>
       </div>
     </Modal>
 
-    <Modal open={callInviteOpen} title={generatedCallInvite ? 'Convite criado' : `Convidar para #${active?.name || 'call'}`} onClose={() => { if (!callInviteBusy) { setCallInviteOpen(false); setGeneratedCallInvite(null); } }}>
+    <Modal open={callInviteOpen} title={generatedCallInvite ? 'Convite criado' : `Convidar para #${active?.name || 'chamada'}`} onClose={() => { if (!callInviteBusy) { setCallInviteOpen(false); setGeneratedCallInvite(null); } }}>
       {!generatedCallInvite ? <div className="call-invite-dialog">
-        <div className="call-invite-target"><Icon name="phone" size={18} /><div><strong>#{active?.name}</strong><span>Convite vinculado a esta call.</span></div></div>
-        <p className="helper">O convite usará automaticamente as regras definidas pelo administrador e só pode ser criado enquanto você estiver dentro desta call.</p>
+        <div className="call-invite-target"><Icon name="phone" size={18} /><div><strong>#{active?.name}</strong><span>Convite vinculado a esta chamada.</span></div></div>
+        <p className="helper">O convite usará automaticamente as regras definidas pelo administrador e só pode ser criado enquanto você estiver dentro desta chamada.</p>
         <div className="modal-actions"><button type="button" className="ghost-btn" onClick={() => setCallInviteOpen(false)} disabled={callInviteBusy}>Cancelar</button><button type="button" className="primary-btn" onClick={createCallInvite} disabled={callInviteBusy}>{callInviteBusy ? <Spinner label="Criando..." /> : <><Icon name="shield" size={15} /> Criar convite</>}</button></div>
       </div> : <div className="call-invite-dialog">
         <div className="call-invite-success"><Icon name="check" size={18} /><div><strong>Convite pronto</strong><span>#{generatedCallInvite.roomName} · expira em {new Date(generatedCallInvite.expiresAt).toLocaleString('pt-BR')}</span></div></div>
@@ -391,8 +384,7 @@ export default function ServidorPage() {
     </Modal>
 
     <Modal open={settingsOpen} title="Preferências do CPX" onClose={() => setSettingsOpen(false)}>
-      <div className="field"><label>Aparência</label><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}><button className="secondary-btn" onClick={() => setTheme('cpx')} style={{ borderColor: theme === 'cpx' ? 'var(--purple)' : undefined }}><Icon name="moon" size={15} /> CPX Dark</button><button className="secondary-btn" onClick={() => setTheme('light')} style={{ borderColor: theme === 'light' ? 'var(--purple)' : undefined }}><Icon name="sun" size={15} /> Claro</button></div></div>
-      <div className="toggle-row"><div><strong>Sons da interface</strong><span>Notificações discretas ao entrar, sair ou receber eventos.</span></div><input className="switch" type="checkbox" checked={sounds} onChange={(e) => setSounds(e.target.checked)} /></div>
+      <div className="field"><label><div className="toggle-row"><div><strong>Sons da interface</strong><span>Notificações discretas ao entrar, sair ou receber eventos.</span></div><input className="switch" type="checkbox" checked={sounds} onChange={(e) => setSounds(e.target.checked)} /></div>
       <div className="toggle-row"><div><strong>Notificações</strong><span>Pressione N para abrir o centro de notificações.</span></div><Badge tone="green">Ativo</Badge></div>
       <div className="toggle-row"><div><strong>Atalhos de chamada</strong><span>M = microfone · C = câmera · S = tela · Esc = sair.</span></div><Badge tone="green">Ativo</Badge></div>
       <div className="modal-actions"><button className="primary-btn" onClick={() => setSettingsOpen(false)}>Fechar</button></div>
