@@ -336,6 +336,21 @@ function ConnectedCall({ channel, user, rightTab, rightPanelOpen, onRightTab, on
   }, [screenFocusSid, screenAvailable]);
   const connectionText = reconnecting ? 'Reconectando...' : String(connectionState || '').toLowerCase().includes('connected') ? 'Conectado' : 'Conectando...';
 
+  async function handleSendMessage(event) {
+    event.preventDefault();
+    if (sendingMessage || !messageText.trim()) return;
+    setSendingMessage(true);
+    setFailedMessage('');
+    const textToSend = messageText.trim();
+    try {
+      const ok = await onSendMessage(event);
+      if (ok === false) setFailedMessage(textToSend);
+    } catch {
+      setFailedMessage(textToSend);
+    } finally {
+      setSendingMessage(false);
+    }
+  }
   function focusParticipant(participant) { setFocusedIdentity((current) => current === participant.identity ? null : participant.identity); }
   return <div className={styles.connected}>
     <section className={styles.callArea}>
@@ -353,21 +368,7 @@ function ConnectedCall({ channel, user, rightTab, rightPanelOpen, onRightTab, on
       {rightTab === 'participants' ? <div className={styles.panelScroll}><div className={styles.panelTitle}>NESTA CHAMADA <span className={styles.panelTitleCount}>{filtered.length}</span></div>{filtered.length ? filtered.map((participant) => { const name = displayName(participant); const local = participant.identity === localParticipant?.identity; const role = participantRole(participant); return <div key={participant.identity} className={`${styles.participantRow} ${participant.isSpeaking ? styles.speakingRow : ''}`}><Avatar name={name} size="sm" status="online" /><div className={styles.participantInfo}><strong>{name}{local ? ' (você)' : ''}</strong><span><i />{roleLabel(role)}{participant.isSpeaking ? ' • falando agora' : participant.isScreenShareEnabled ? ' • compartilhando a tela' : ''}</span></div><div className={styles.participantTools}><span title="Microfone" className={participant.isMicrophoneEnabled ? styles.mediaOn : styles.mediaOff}><Icon name={participant.isMicrophoneEnabled ? 'mic' : 'micOff'} size={12} /></span><span title="Câmera" className={participant.isCameraEnabled ? styles.mediaOn : styles.mediaOff}><Icon name={participant.isCameraEnabled ? 'camera' : 'cameraOff'} size={12} /></span>{participant.isScreenShareEnabled && <span title="Compartilhando a tela" className={styles.mediaOn}><Icon name="monitor" size={12} /></span>}{!local && ['admin', 'membro'].includes(user.role) && <><button className="icon-btn" title={participant.isMicrophoneEnabled ? 'Silenciar microfone' : 'Microfone indisponível'} disabled={!participant.isMicrophoneEnabled} onClick={() => onModerate?.(channel.name, participant.identity, 'mute')}><Icon name="mic" size={13} /></button><button className="icon-btn" title="Desconectar" onClick={() => onModerate?.(channel.name, participant.identity, 'disconnect')}><Icon name="logout" size={13} /></button></>}</div></div>; }) : <EmptyState icon="users" title="Nenhum participante encontrado" description="Tente pesquisar por outro nome." />}</div> : <div className={styles.chatWrap}><div className={styles.chatSearch}><div className="search-box" style={{ width: '100%' }}><Icon name="search" size={15} /><input className="input" value={chatSearch} onChange={(event) => setChatSearch(event.target.value)} placeholder="Pesquisar mensagens..." /></div></div><div className={styles.chatList} ref={chatListRef}>{filteredMessages.length ? filteredMessages.map((message) => <div className={styles.chatMessage} key={message.id}><Avatar name={message.sender_name} size="sm" /><div className={styles.chatBody}><div><strong>{message.sender_name}</strong><span>{new Date(message.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span></div><p>{message.content}</p></div></div>) : <EmptyState icon="chat" title={chatSearch ? 'Nenhuma mensagem encontrada' : 'Sem mensagens ainda'} description={chatSearch ? 'Tente outro termo.' : 'Envie a primeira mensagem para começar a conversa.'} />}</div>
 {unreadMessages > 0 && rightTab !== 'chat' && <button type="button" className={styles.newMessagesButton} onClick={() => onRightTab('chat', true)}><Icon name="chat" size={13} /> {unreadMessages} {unreadMessages === 1 ? 'nova mensagem' : 'novas mensagens'}</button>}
 {failedMessage && <div className={styles.chatError}><span>Não foi possível enviar a mensagem.</span><button type="button" onClick={() => { setMessageText(failedMessage); setFailedMessage(''); }}>Tentar novamente</button></div>}
-<form className={styles.composer} onSubmit={async (event) => {
-  event.preventDefault();
-  if (sendingMessage || !messageText.trim()) return;
-  setSendingMessage(true);
-  setFailedMessage('');
-  const textToSend = messageText.trim();
-  try {
-    const ok = await onSendMessage(event);
-    if (ok === false) setFailedMessage(textToSend);
-  } catch {
-    setFailedMessage(textToSend);
-  } finally {
-    setSendingMessage(false);
-  }
-}><input className="input" maxLength={500} value={messageText} onChange={(event) => setMessageText(event.target.value)} placeholder="Escreva uma mensagem..." aria-label="Mensagem" /><button className="primary-btn" disabled={!messageText.trim() || sendingMessage} aria-label="Enviar">{sendingMessage ? <span className={styles.sendSpinner} /> : <Icon name="chat" size={16} />}</button></form></div>}
+<form className={styles.composer} onSubmit={handleSendMessage}><input className="input" maxLength={500} value={messageText} onChange={(event) => setMessageText(event.target.value)} placeholder="Escreva uma mensagem..." aria-label="Mensagem" /><button className="primary-btn" disabled={!messageText.trim() || sendingMessage} aria-label="Enviar">{sendingMessage ? <span className={styles.sendSpinner} /> : <Icon name="chat" size={16} />}</button></form></div>}
     </aside>
   </div>;
 }
