@@ -55,9 +55,6 @@ export async function POST(request) {
     if (!channel || !channel.is_active) {
       return Response.json({ error: 'A call não está ativa.' }, { status: 404 });
     }
-    if (!channel.guest_access) {
-      return Response.json({ error: 'Esta call não aceita convidados. Ative o acesso de convidados no Centro de Comando.' }, { status: 409 });
-    }
 
     const service = livekitService();
     if (!service) {

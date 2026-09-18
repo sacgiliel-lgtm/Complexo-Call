@@ -1,10 +1,12 @@
 import { getRequestActor, actorResponse } from '../../../lib/requestAuth';
 
-async function getChannel(admin, id, role) {
+async function getChannel(admin, id, role, guestRoomName = null) {
   const { data: channel, error } = await admin.from('channels').select('id,name,is_active,guest_access').eq('id', id).maybeSingle();
   if (error) throw error;
   if (!channel || !channel.is_active) return { error: Response.json({ error: 'Canal indisponível.' }, { status: 404 }) };
-  if (role === 'convidado' && !channel.guest_access) return { error: Response.json({ error: 'Convidados não têm acesso a este canal.' }, { status: 403 }) };
+  if (role === 'convidado' && guestRoomName && channel.name !== guestRoomName) {
+    return { error: Response.json({ error: 'Este convite dá acesso somente à call para a qual você foi convidado.' }, { status: 403 }) };
+  }
   return { channel };
 }
 
@@ -15,7 +17,7 @@ export async function GET(request) {
   const channelId = searchParams.get('channel');
   if (!channelId) return Response.json({ error: 'Canal não informado.' }, { status: 400 });
   try {
-    const access = await getChannel(actor.admin, channelId, actor.role);
+    const access = await getChannel(actor.admin, channelId, actor.role, actor.guest?.room_name);
     if (access.error) return access.error;
     const { data, error } = await actor.admin.from('channel_messages').select('id,sender_id,sender_name,content,created_at').eq('channel_id', channelId).is('deleted_at', null).order('created_at', { ascending: false }).limit(100);
     if (error) throw error;
@@ -34,7 +36,7 @@ export async function POST(request) {
   const content = String(body.content || '').trim();
   if (!channelId || !content || content.length > 500) return Response.json({ error: 'Mensagem inválida. Use entre 1 e 500 caracteres.' }, { status: 400 });
   try {
-    const access = await getChannel(actor.admin, channelId, actor.role);
+    const access = await getChannel(actor.admin, channelId, actor.role, actor.guest?.room_name);
     if (access.error) return access.error;
     const { data, error } = await actor.admin.from('channel_messages').insert({ channel_id: channelId, sender_id: actor.id, sender_name: actor.username, content }).select('id,sender_id,sender_name,content,created_at').single();
     if (error) throw error;
