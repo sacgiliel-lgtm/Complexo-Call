@@ -28,3 +28,19 @@
   .inviteButton span{display:none}
   .inviteButton{width:36px;padding:0}
 }
+
+/* Status, diagnostics and participant refinements. */
+.qualityHint{margin-top:8px;padding:8px 4px 2px;color:#6f6477;font-size:7px;line-height:1.45;border-top:1px solid rgba(255,255,255,.06)}
+.panelTitle{display:flex;align-items:center;gap:6px}
+.panelTitleCount{display:inline-grid;place-items:center;min-width:18px;height:17px;padding:0 5px;border-radius:6px;background:rgba(155,92,255,.1);color:#bda1ff;font-size:7px}
+.participantRow{position:relative}
+.participantRow:has(.mediaOn){border-color:rgba(155,92,255,.08)}
+.chatList{scroll-behavior:smooth}
+.chatMessage{transition:background .15s ease,transform .15s ease}
+.chatMessage:hover{transform:translateX(1px)}
+.chatBody p{white-space:pre-wrap}
+.stageInfo{box-shadow:0 8px 30px rgba(0,0,0,.18)}
+@media(max-width:520px){
+  .qualityHint{font-size:6.5px}
+  .qualityRow{font-size:8px}
+}
