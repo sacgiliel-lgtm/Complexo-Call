@@ -2,3 +2,29 @@
 @keyframes pulse{0%{transform:scale(1);box-shadow:0 0 0 0 rgba(69,220,145,.25)}70%{transform:scale(1.04);box-shadow:0 0 0 7px rgba(69,220,145,0)}100%{transform:scale(1);box-shadow:0 0 0 0 rgba(69,220,145,0)}}@keyframes float{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-5px) scale(1.02)}}@keyframes reaction{0%{opacity:0;transform:translateY(35px) scale(.65)}12%{opacity:1;transform:translateY(0) scale(1)}80%{opacity:1;transform:translateY(-105px) scale(1.04)}100%{opacity:0;transform:translateY(-150px) scale(.92)}}@keyframes load{0%{transform:translateX(-120%)}50%{transform:translateX(100%)}100%{transform:translateX(260%)}}
 @media(max-width:1050px){.smartStage{grid-template-columns:minmax(0,1fr) 165px}.panel{width:290px;min-width:270px}.topbar{grid-template-columns:1fr auto}.topbarCenter{display:none}}@media(max-width:820px){.connected{display:block}.callArea{height:100%}.topbar{height:56px;padding:7px 10px}.topbarLeft span{display:none}.channelIcon{width:31px;height:31px;border-radius:9px}.qualityPill{padding:0 8px}.qualityPill>span:last-child{display:none}.stage{padding:8px}.smartStage{display:flex;flex-direction:column}.spotlight{flex:1;min-height:0}.rail{height:112px;flex-direction:row;overflow-x:auto;overflow-y:hidden}.compact{height:100%;width:145px;min-width:145px}.shortcuts,.stageInfo{display:none}.toolbarWrap{bottom:8px;width:calc(100% - 16px)}.toolbar{justify-content:center;gap:5px;padding:7px;border-radius:15px}.control{width:43px;height:43px;border-radius:12px}.control span{display:none}.exit{width:49px}.moreMenu,.reactionMenu{bottom:54px}.panel{position:absolute;right:0;top:0;bottom:0;width:min(340px,88vw);min-width:0;box-shadow:-25px 0 70px rgba(0,0,0,.36);transform:translateX(102%);transition:transform .22s ease}.panelOpen{transform:translateX(0)}.lobbyCard{padding:18px}.previewBox{height:210px}.deviceGrid,.deviceSelectGrid{grid-template-columns:1fr}.lobbyActions{margin-top:11px}.reconnectOverlay{inset:56px 0 0}.startMedia{display:none}}@media(max-width:520px){.topbarRight :global(.icon-btn){display:none}.topbar{padding-right:8px}.stage{padding:6px}.smartStage{gap:7px}.rail{height:96px}.compact{width:126px;min-width:126px}.card{border-radius:13px}.cardBottom{padding:9px}.nameWrap>span{font-size:10px}.nameWrap small{font-size:7px}.speakingLabel{display:none}.toolbarWrap{bottom:6px}.toolbar{overflow-x:auto;justify-content:flex-start}.toolbar::-webkit-scrollbar{display:none}.control{flex:none}.popover{right:-32px;width:230px}.previewBox{height:185px}.lobbyCard h2,.endedCard h2{font-size:20px}.summary{gap:5px}.summary>div{padding:9px 3px}}
 @media(prefers-reduced-motion:reduce){.livePill i,.avatarHalo,.reactionBubble,.loaderLine i{animation:none}.card,.control,.panel{transition:none}}
+
+/* Direct invite action available while a member is inside a call. */
+.inviteButton{
+  height:36px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  padding:0 10px;
+  border:1px solid rgba(155,92,255,.32);
+  border-radius:10px;
+  background:rgba(155,92,255,.09);
+  color:#e0d1ff;
+  font-size:9px;
+  font-weight:850;
+  cursor:pointer;
+}
+.inviteButton:hover{
+  background:rgba(155,92,255,.17);
+  border-color:rgba(155,92,255,.52);
+  color:#fff;
+}
+@media(max-width:820px){
+  .inviteButton span{display:none}
+  .inviteButton{width:36px;padding:0}
+}

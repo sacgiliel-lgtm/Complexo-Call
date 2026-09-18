@@ -49,7 +49,8 @@ export default function Home() {
     try {
       const response = await fetch('/api/validate-invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: code.trim() }) });
       const json = await response.json(); if (!response.ok) throw new Error(json.error || 'Convite inválido.');
-      setNotice('Convite validado. Entrando no CPX...'); router.push('/servidor');
+      setNotice('Convite validado. Entrando no CPX...');
+      router.push(json.roomName ? `/servidor?call=${encodeURIComponent(json.roomName)}` : '/servidor');
     } catch (inviteError) { setError(inviteError.message); }
     finally { setSubmitting(false); }
   }

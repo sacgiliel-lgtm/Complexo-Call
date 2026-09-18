@@ -144,10 +144,21 @@ export async function POST(request) {
 
     if (action === 'settings') {
       const maxUsers = body.maxUsers === null || body.maxUsers === 'ilimitado' ? null : Math.max(1, Math.min(Number(body.maxUsers), 1000));
-      const payload = { id: 1, maintenance_mode: !!body.maintenanceMode, discord_logs: !!body.discordLogs, max_users: maxUsers, updated_at: new Date().toISOString() };
+      const callInviteExpiresMinutes = Math.max(5, Math.min(Number(body.callInviteExpiresMinutes) || 60, 10080));
+      const callInviteGuestName = String(body.callInviteGuestName || 'Convidado').trim().slice(0, 32) || 'Convidado';
+      const payload = {
+        id: 1,
+        maintenance_mode: !!body.maintenanceMode,
+        discord_logs: !!body.discordLogs,
+        max_users: maxUsers,
+        call_invite_enabled: body.callInviteEnabled !== false,
+        call_invite_expires_minutes: callInviteExpiresMinutes,
+        call_invite_guest_name: callInviteGuestName,
+        updated_at: new Date().toISOString()
+      };
       const { error } = await admin.from('server_settings').upsert(payload);
       if (error) throw error;
-      await logActivity(admin, profile, 'settings_updated', 'server', `manutencao=${payload.maintenance_mode}; limite=${payload.max_users ?? 'ilimitado'}`);
+      await logActivity(admin, profile, 'settings_updated', 'server', `manutencao=${payload.maintenance_mode}; limite=${payload.max_users ?? 'ilimitado'}; convites=${payload.call_invite_enabled ? 'on' : 'off'}; validade=${callInviteExpiresMinutes} min`);
       return Response.json({ success: true });
     }
 
@@ -165,7 +176,7 @@ export async function GET(request) {
     const { admin } = auth;
     const [{ data: users, error: usersError }, { data: invites, error: invitesError }, { data: channels, error: channelsError }, { data: settings, error: settingsError }, { data: activities, error: activityError }] = await Promise.all([
       admin.from('profiles').select('id,username,role,status,presence_status,last_seen_at,created_at').order('created_at', { ascending: false }),
-      admin.from('invites').select('id,code_preview,guest_name,type,expires_at,used_at,revoked_at,created_at').order('created_at', { ascending: false }).limit(100),
+      admin.from('invites').select('id,code_preview,guest_name,type,room_name,expires_at,used_at,revoked_at,created_at').order('created_at', { ascending: false }).limit(100),
       admin.from('channels').select('*').order('sort_order', { ascending: true }),
       admin.from('server_settings').select('*').eq('id', 1).maybeSingle(),
       admin.from('activity_logs').select('id,actor_name,action,target,details,created_at').order('created_at', { ascending: false }).limit(30),
