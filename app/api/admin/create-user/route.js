@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { getSupabaseAdmin } from '../../../../lib/supabaseAdmin';
 
 export async function POST(request) {
@@ -13,23 +14,22 @@ export async function POST(request) {
 
     const body = await request.json().catch(() => ({}));
     const email = String(body.email || '').trim().toLowerCase();
-    const password = String(body.password || '');
+    const password = crypto.randomBytes(18).toString('base64url');
     const username = String(body.username || '').trim();
     const role = body.role;
-    if (!email || !password || !username || !['admin', 'membro'].includes(role)) return Response.json({ error: 'Preencha todos os campos corretamente.' }, { status: 400 });
+    if (!email || !username || !['admin', 'membro'].includes(role)) return Response.json({ error: 'Preencha todos os campos corretamente.' }, { status: 400 });
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return Response.json({ error: 'Informe um e-mail válido.' }, { status: 400 });
     if (username.length < 2 || username.length > 32) return Response.json({ error: 'Username deve ter entre 2 e 32 caracteres.' }, { status: 400 });
-    if (password.length < 8) return Response.json({ error: 'A senha deve ter pelo menos 8 caracteres.' }, { status: 400 });
 
     const { data: newUser, error: createError } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
     if (createError) return Response.json({ error: createError.message }, { status: 400 });
-    const { error: profileError } = await admin.from('profiles').upsert({ id: newUser.user.id, username, role, status: 'ativo', presence_status: 'offline' }, { onConflict: 'id' });
+    const { error: profileError } = await admin.from('profiles').upsert({ id: newUser.user.id, username, role, status: 'ativo', presence_status: 'offline', must_change_password: true }, { onConflict: 'id' });
     if (profileError) {
       await admin.auth.admin.deleteUser(newUser.user.id);
       throw profileError;
     }
     try { await admin.from('activity_logs').insert({ actor_id: requester.id, actor_name: requesterProfile.username || requester.email || 'Admin', action: 'user_created', target: username, details: `cargo=${role}; email=${email}` }); } catch (logError) { console.error('Create user log:', logError); }
-    return Response.json({ success: true, user: { id: newUser.user.id, username, role } });
+    return Response.json({ success: true, user: { id: newUser.user.id, username, role }, temporaryPassword: password });
   } catch (error) {
     console.error('Create user:', error);
     return Response.json({ error: error.message || 'Erro interno.' }, { status: 500 });
