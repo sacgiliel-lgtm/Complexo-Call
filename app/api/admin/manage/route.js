@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { RoomServiceClient } from 'livekit-server-sdk';
 import { getSupabaseAdmin } from '../../../../lib/supabaseAdmin';
+import { logDiscordEvent } from '../../../../lib/discordLogger';
 
 function hashCode(value) { return crypto.createHash('sha256').update(value).digest('hex'); }
 function getClient(request) {
@@ -18,7 +19,7 @@ async function requireAdmin(request) {
   return { admin, user, profile };
 }
 async function logActivity(admin, actor, action, target, details = '') {
-  try { await admin.from('activity_logs').insert({ actor_id: actor.id, actor_name: actor.username || actor.email || 'Admin', action, target, details }); } catch (error) { console.error('Activity log:', error); }
+  await logDiscordEvent({ action, actor, target, details });
 }
 function livekitService() {
   const host = process.env.NEXT_PUBLIC_LIVEKIT_URL?.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:');
