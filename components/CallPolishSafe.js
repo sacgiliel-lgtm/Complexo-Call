@@ -213,7 +213,7 @@ function ConnectedCall({ channel, user, rightTab, rightPanelOpen, onRightTab, on
   const connectionState = useConnectionState();
   const { localParticipant } = useLocalParticipant();
   const room = useRoomContext();
-  const displayedRoomName = room?.name || displayedRoomName;
+  const displayedRoomName = room?.name || channel.name;
   const [qualityMap, setQualityMap] = useState({});
   const [chatSearch, setChatSearch] = useState('');
   const [focusedIdentity, setFocusedIdentity] = useState(null);
