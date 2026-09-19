@@ -32,7 +32,7 @@ export async function GET(request) {
     }
     const { data: channels, error } = await query;
     if (error) throw error;
-    return json({ channels: channels || [], maintenance, actor: { username: actor.username, role: actor.role } });
+    return json({ channels: channels || [], maintenance, currentRoom: actor.role === 'convidado' ? (actor.guest?.room_name || null) : null, actor: { username: actor.username, role: actor.role } });
   } catch (error) {
     console.error('Channels API:', error);
     return json({ error: 'Não foi possível carregar os canais.' }, { status: 500 });
