@@ -263,7 +263,7 @@ export default function ServidorPage() {
       const response = await fetch('/api/admin/participants', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cred.value}` },
-        body: JSON.stringify({ sourceRoom: moveSelection.sourceRoom, destinationRoom: moveTarget, identity: moveSelection.identity }),
+        body: JSON.stringify({ sourceRoom: moveSelection.sourceRoom, destinationRoom: moveTarget, identity: moveSelection.identity, name: moveSelection.name }),
       });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error || 'Não foi possível mover o participante.');
