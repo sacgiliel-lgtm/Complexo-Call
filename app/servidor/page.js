@@ -2,7 +2,7 @@
 
 import { supabase } from '../../lib/supabaseClient';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon, Avatar, Badge, EmptyState, Modal, Spinner, ToastStack } from '../../components/ui';
 import { RoomExperience } from '../../components/RoomExperience';
@@ -229,13 +229,44 @@ export default function ServidorPage() {
     setMoveParticipantOpen(true);
   }
 
-  function handleRoomMoved(roomName) {
-    const targetChannel = channels.find((channel) => channel.name === roomName);
+  const roomMoveGuardRef = useRef({ room: '', at: 0 });
+
+  const handleRoomMoved = useCallback(async (roomName) => {
+    const nextRoom = String(roomName || '').trim();
+    if (!nextRoom) return;
+
+    const now = Date.now();
+    if (roomMoveGuardRef.current.room === nextRoom && now - roomMoveGuardRef.current.at < 2500) return;
+    roomMoveGuardRef.current = { room: nextRoom, at: now };
+
+    let targetChannel = channels.find((channel) => channel.name === nextRoom);
+
+    // Para convidados, /api/channels retorna a call atualmente autorizada.
+    // O backend atualiza essa autorização antes de pedir o move ao LiveKit.
+    if (!targetChannel || user?.type === 'guest') {
+      const headers = cred?.type === 'session' ? { Authorization: `Bearer ${cred.value}` } : {};
+      const attempts = [0, 250, 750, 1500];
+
+      for (const delay of attempts) {
+        if (delay) await new Promise((resolve) => window.setTimeout(resolve, delay));
+        try {
+          const response = await fetch('/api/channels', { headers, cache: 'no-store' });
+          const json = await response.json();
+          if (!response.ok) continue;
+
+          const nextChannels = json.channels || [];
+          setChannels(nextChannels);
+          targetChannel = nextChannels.find((channel) => channel.name === nextRoom);
+          if (targetChannel) break;
+        } catch {}
+      }
+    }
+
     if (!targetChannel) {
       pushToast({
         type: 'error',
         title: 'Transferência',
-        message: `Você foi movido para uma sala que não está disponível: #${roomName}.`,
+        message: `A call #${nextRoom} foi recebida pelo LiveKit, mas os dados da sala ainda não foram sincronizados. Atualize a página para concluir a sincronização.`,
       });
       return;
     }
@@ -251,7 +282,7 @@ export default function ServidorPage() {
       title: 'Você foi transferido',
       message: `Agora você está em #${targetChannel.name}.`,
     });
-  }
+  }, [channels, cred, user?.type]);
 
   async function moveSelectedParticipant() {
     if (!moveSelection || !moveTarget || movingParticipant || !cred || cred.type !== 'session') return;
