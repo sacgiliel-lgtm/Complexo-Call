@@ -31,7 +31,13 @@ export async function POST(request) {
     const {data:consumed,error:consumeError}=await admin.from('invites').update({used_at:new Date().toISOString(),guest_name:username}).eq('id',invite.id).is('used_at',null).is('revoked_at',null).select('id').maybeSingle();
     if(consumeError)throw consumeError;
     if(!consumed)return Response.json({error:'Este convite acabou de ser utilizado. Gere outro convite.'},{status:409});
-    const {error:sessionError}=await admin.from('guest_sessions').insert({jti,invite_id:String(invite.id),username,expires_at:expiresAt.toISOString()});
+    const {error:sessionError}=await admin.from('guest_sessions').insert({
+      jti,
+      invite_id:String(invite.id),
+      username,
+      expires_at:expiresAt.toISOString(),
+      current_room_name: roomName,
+    });
     if(sessionError)throw sessionError;
     const ticket=createGuestTicket({jti,username,inviteId:String(invite.id),expiresAt});
     const response=Response.json({success:true,username,roomName,expiresAt:expiresAt.toISOString()});
