@@ -332,12 +332,42 @@ function ConnectedCall({ channel, user, rightTab, rightPanelOpen, onRightTab, on
   }, [messages]);
   useEffect(() => {
     const onData = (payload, participant, kind, topic) => {
+      if (topic === 'cpx-participant-transfer') {
+        try {
+          const transfer = JSON.parse(new TextDecoder().decode(payload));
+          if (
+            transfer?.type === 'participant_transfer' &&
+            transfer.identity === localParticipant?.identity &&
+            transfer.destinationRoom &&
+            transfer.destinationRoom !== channel.name
+          ) {
+            onToast?.({
+              type: 'info',
+              title: 'Transferindo chamada',
+              message: `Você está sendo transferido para #${transfer.destinationRoom}...`,
+            });
+
+            // Deixe a mensagem ser processada antes de sair da sala atual.
+            window.setTimeout(() => {
+              room.disconnect();
+              window.location.assign(
+                `/servidor?call=${encodeURIComponent(transfer.destinationRoom)}`,
+              );
+            }, 250);
+          }
+        } catch {}
+        return;
+      }
+
       if (topic !== REACTION_TOPIC || !participant) return;
-      try { const data = JSON.parse(new TextDecoder().decode(payload)); if (REACTIONS.includes(data.emoji)) addReaction(data.emoji, participant); } catch {}
+      try {
+        const data = JSON.parse(new TextDecoder().decode(payload));
+        if (REACTIONS.includes(data.emoji)) addReaction(data.emoji, participant);
+      } catch {}
     };
     room.on(RoomEvent.DataReceived, onData);
     return () => room.off(RoomEvent.DataReceived, onData);
-  }, [room]);
+  }, [room, localParticipant?.identity, channel.name, onToast]);
   function addReaction(emoji, participant) {
     const item = { id: `${Date.now()}-${Math.random()}`, emoji, identity: participant?.identity || localParticipant?.identity || 'local' };
     setReactions((current) => [...current.slice(-12), item]);
