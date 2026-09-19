@@ -108,6 +108,7 @@ export default function ServidorPage() {
           if (!response.ok) { router.replace('/'); return; }
           setUser({ username: json.username, role: 'convidado', type: 'guest', identity: `guest:${json.jti || ''}` });
           setProfileName(json.username || 'Convidado');
+          if (!requestedCall && json.currentRoom) setPendingCallName(json.currentRoom);
           setPresence('online');
           setCred({ type: 'guest' });
         }
