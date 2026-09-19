@@ -159,59 +159,32 @@ export default function ServidorPage() {
     setChannelParticipants((current) => ({ ...current, [channelName]: unique }));
   }
 
+  // A lista lateral deve vir do LiveKit, não do Supabase Presence.
+  // Assim, somente pessoas realmente conectadas à chamada podem ser movidas.
   useEffect(() => {
-    if (!cred || !channels.length || !user?.identity) return;
+    if (!cred) return;
     let cancelled = false;
-    const subscriptions = new Map();
-    const visibleChannels = channels;
 
-    visibleChannels.forEach((channel) => {
-      const realtimeChannel = supabase.channel('cpx-call-presence:' + channel.id, {
-        config: { presence: { key: user.identity } },
-      });
-      const sync = () => applyRealtimePresence(channel.name, realtimeChannel);
-      realtimeChannel
-        .on('presence', { event: 'sync' }, sync)
-        .on('presence', { event: 'join' }, sync)
-        .on('presence', { event: 'leave' }, sync)
-        .subscribe(async (status) => {
-          if (cancelled || status !== 'SUBSCRIBED') return;
-          sync();
-          const desired = desiredPresenceRef.current;
-          if (desired?.channelId === channel.id) {
-            try { await realtimeChannel.track(desired.payload); } catch {}
-          }
+    async function loadLiveKitPresence() {
+      try {
+        const headers = cred.type === 'session' ? { Authorization: `Bearer ${cred.value}` } : {};
+        const response = await fetch('/api/channels/presence', {
+          headers,
+          cache: 'no-store',
         });
-      subscriptions.set(channel.name, realtimeChannel);
-    });
+        const json = await response.json();
+        if (cancelled || !response.ok) return;
+        setChannelParticipants(json.participants || {});
+      } catch {}
+    }
 
-    presenceChannelsRef.current = subscriptions;
+    loadLiveKitPresence();
+    const interval = window.setInterval(loadLiveKitPresence, 3000);
     return () => {
       cancelled = true;
-      subscriptions.forEach((realtimeChannel) => { supabase.removeChannel(realtimeChannel); });
-      presenceChannelsRef.current = new Map();
+      window.clearInterval(interval);
     };
-  }, [cred, channels, user?.identity, user?.type]);
-
-  useEffect(() => {
-    const payload = active && token && user?.identity ? {
-      channelId: active.id,
-      payload: {
-        identity: user.identity,
-        name: user.username,
-        role: user.role || 'membro',
-        isSpeaking: false,
-        online_at: new Date().toISOString(),
-      },
-    } : null;
-    desiredPresenceRef.current = payload;
-
-    presenceChannelsRef.current.forEach((realtimeChannel, channelName) => {
-      const shouldTrack = !!payload && channelName === active?.name;
-      if (shouldTrack) realtimeChannel.track(payload.payload).catch(() => {});
-      else realtimeChannel.untrack().catch(() => {});
-    });
-  }, [active?.id, active?.name, token, user?.identity, user?.username, user?.role]);
+  }, [cred]);
 
   useEffect(() => {
     if (!cred || cred.type !== 'session') return;
