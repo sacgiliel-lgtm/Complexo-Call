@@ -129,11 +129,11 @@ export default function Home() {
 
       <div className="cpx-home-main">
         <section className="cpx-home-copy">
-          <span className="cpx-home-kicker">Central de encontros CPX</span>
+          <span className="cpx-home-kicker">Complexo</span>
           <h1 className="cpx-home-title">Sua equipe está aqui.<span>É só entrar.</span></h1>
           <p className="cpx-home-description">Acesse suas salas e participe das conversas do CPX com voz, câmera, compartilhamento de tela e chat, tudo em um único lugar.</p>
           <div className="cpx-home-chips"><span className="cpx-home-chip">Acesso pelo navegador</span><span className="cpx-home-chip">Chamadas ao vivo</span><span className="cpx-home-chip">Compartilhamento de tela</span><span className="cpx-home-chip">Chat da sala</span></div>
-          <div className="cpx-home-steps"><div className="cpx-home-step"><b>01 · Identifique-se</b>Entre com sua conta ou informe um convite válido.</div><div className="cpx-home-step"><b>02 · Vá para o seu canal</b>Escolha a sala disponível e confira câmera e microfone.</div><div className="cpx-home-step"><b>03 · Participe</b>Converse, compartilhe sua tela e acompanhe o chat em tempo real.</div></div>
+          <div className="cpx-home-steps"><div className="cpx-home-step"><b>01 · Identifique-se</b>Entre com sua conta ou informe um convite válido.</div><div className="cpx-home-step"><b>02 · Vá para o seu canal</b>Escolha a sala disponível e confira câmera e microfone.</div><div className="cpx-home-step"><b>03 · Participe</b>Compartilhe sua tela e realize nossas entrevistas.</div></div>
         </section>
 
         <section className="cpx-home-auth" aria-label="Acesso ao CPX">
