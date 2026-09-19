@@ -136,7 +136,7 @@ function useLobbyPreview({ audio, video, audioDevice, cameraDevice, onDevices, o
   return { videoRef, micLevel };
 }
 
-export function CallExperience({ token, serverUrl, channel, user, rightTab, rightPanelOpen = true, onRightTab, messages, messageText, setMessageText, onSendMessage, onToast, onDisconnect, onModerate, onCreateInvite, participantFilter = '' }) {
+export function CallExperience({ token, serverUrl, channel, user, rightTab, rightPanelOpen = true, onRightTab, messages, messageText, setMessageText, onSendMessage, onToast, onDisconnect, onRoomMoved, onModerate, onCreateInvite, participantFilter = '' }) {
   const [ready, setReady] = useState(false);
   const [joinAudio, setJoinAudio] = useState(true);
   const [joinVideo, setJoinVideo] = useState(false);
@@ -171,7 +171,7 @@ export function CallExperience({ token, serverUrl, channel, user, rightTab, righ
   return <div className={styles.root}>
     <LiveKitRoom token={token} serverUrl={serverUrl} connect audio={joinAudio} video={joinVideo} options={roomOptions} onConnected={handleConnected} onDisconnected={handleDisconnected} onError={(error) => onToast?.({ type: 'error', title: 'Falha na chamada', message: error?.message || 'A conexão foi interrompida.' })} onMediaDeviceFailure={(failure) => onToast?.({ type: 'error', title: 'Dispositivo indisponível', message: failure?.message || 'Verifique sua câmera ou microfone.' })}>
       <RoomAudioRenderer />
-      <ConnectedCall channel={channel} user={user} rightTab={rightTab} rightPanelOpen={rightPanelOpen} onRightTab={onRightTab} onCloseRight={() => onRightTab('participants', false)} messages={messages} messageText={messageText} setMessageText={setMessageText} onSendMessage={onSendMessage} onToast={onToast} onModerate={onModerate} onCreateInvite={onCreateInvite} participantFilter={participantFilter} />
+      <ConnectedCall channel={channel} user={user} rightTab={rightTab} rightPanelOpen={rightPanelOpen} onRightTab={onRightTab} onCloseRight={() => onRightTab('participants', false)} messages={messages} messageText={messageText} setMessageText={setMessageText} onSendMessage={onSendMessage} onToast={onToast} onRoomMoved={onRoomMoved} onModerate={onModerate} onCreateInvite={onCreateInvite} participantFilter={participantFilter} />
       <StartMediaButton label="Ativar áudio" className={styles.startMedia} />
     </LiveKitRoom>
   </div>;
@@ -206,7 +206,7 @@ function CallLobby({ channel, user, audio, video, setAudio, setVideo, audioDevic
   </div></div>;
 }
 
-function ConnectedCall({ channel, user, rightTab, rightPanelOpen, onRightTab, onCloseRight, messages, messageText, setMessageText, onSendMessage, onToast, onModerate, onCreateInvite, participantFilter }) {
+function ConnectedCall({ channel, user, rightTab, rightPanelOpen, onRightTab, onCloseRight, messages, messageText, setMessageText, onSendMessage, onToast, onRoomMoved, onModerate, onCreateInvite, participantFilter }) {
   const participants = useParticipants();
   const cameraTracks = useTracks([{ source: Track.Source.Camera, withPlaceholder: true }]);
   const screenTracks = useTracks([{ source: Track.Source.ScreenShare, withPlaceholder: false }]);
@@ -330,6 +330,18 @@ function ConnectedCall({ channel, user, rightTab, rightPanelOpen, onRightTab, on
     if (shouldStick) list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
     lastMessageCountRef.current = messages.length;
   }, [messages]);
+  useEffect(() => {
+    const handleMoved = (roomName, token) => {
+      if (!roomName || roomName === channel.name) return;
+      // LiveKit Cloud trata o move como uma migração transparente da sessão:
+      // o SDK recebe o novo token e reconecta internamente. O app só precisa
+      // sincronizar o estado da sala exibida.
+      onRoomMoved?.(roomName, token);
+    };
+    room.on(RoomEvent.Moved, handleMoved);
+    return () => room.off(RoomEvent.Moved, handleMoved);
+  }, [room, channel.name, onRoomMoved]);
+
   useEffect(() => {
     const onData = (payload, participant, kind, topic) => {
       if (topic !== REACTION_TOPIC || !participant) return;
