@@ -184,7 +184,58 @@ export async function POST(request) {
       }, { status: 409 });
     }
 
-    await service.moveParticipant(sourceRoom, identity, destinationRoom);
+    let guestTransfer = null;
+    if (identity.startsWith('guest:')) {
+      const guestJti = identity.slice('guest:'.length);
+      if (!guestJti) {
+        return Response.json({ error: 'Identidade do convidado inválida.' }, { status: 400 });
+      }
+
+      const { data: guestSession, error: guestSessionError } = await actor.admin
+        .from('guest_sessions')
+        .select('jti,current_room_name')
+        .eq('jti', guestJti)
+        .maybeSingle();
+
+      if (guestSessionError) throw guestSessionError;
+      if (!guestSession) {
+        return Response.json({
+          error: 'Sessão do convidado não foi encontrada.',
+          code: 'GUEST_SESSION_NOT_FOUND',
+        }, { status: 409 });
+      }
+
+      const currentGuestRoom = guestSession.current_room_name || sourceRoom;
+      if (currentGuestRoom !== sourceRoom) {
+        return Response.json({
+          error: 'A sessão do convidado já está vinculada a outra call. Atualize a lista e tente novamente.',
+          code: 'GUEST_ROOM_STALE',
+        }, { status: 409 });
+      }
+
+      // Atualizamos a autorização da sessão ANTES do MoveParticipant. Assim,
+      // quando o LiveKit emitir RoomEvent.Moved, o cliente já consegue consultar
+      // a nova call, o novo chat e demais dados protegidos do destino.
+      const { error: guestUpdateError } = await actor.admin
+        .from('guest_sessions')
+        .update({ current_room_name: destinationRoom })
+        .eq('jti', guestJti);
+
+      if (guestUpdateError) throw guestUpdateError;
+      guestTransfer = { jti: guestJti, previousRoom: currentGuestRoom };
+    }
+
+    try {
+      await service.moveParticipant(sourceRoom, identity, destinationRoom);
+    } catch (moveError) {
+      if (guestTransfer) {
+        await actor.admin
+          .from('guest_sessions')
+          .update({ current_room_name: guestTransfer.previousRoom })
+          .eq('jti', guestTransfer.jti);
+      }
+      throw moveError;
+    }
 
     const displayName = requestedName || identity;
 
