@@ -74,7 +74,7 @@ export async function GET(request) {
       }
     }));
 
-    return json({ participants, channels: (channels || []).map(({ id, name }) => ({ id, name })) });
+    return json({ participants, channels: (channels || []).map(({ id, name }) => ({ id, name })), currentRoom: actor.type === 'guest' ? (actor.guest?.room_name || null) : null });
   } catch (error) {
     console.error('Channel presence API:', error);
     return json({ error: 'Não foi possível consultar a presença das calls.' }, { status: 500 });
