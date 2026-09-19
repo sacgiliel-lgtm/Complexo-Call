@@ -170,47 +170,21 @@ export async function POST(request) {
       }
     }
 
-    // Não usamos MoveParticipant aqui. Essa RPC é específica do LiveKit Cloud.
-    // No plano gratuito, fazemos a transferência de forma controlada: enviamos
-    // uma instrução confiável ao participante e depois encerramos a sessão dele
-    // na sala atual. O navegador então solicita um novo token para a sala destino.
-    const transferPayload = new TextEncoder().encode(JSON.stringify({
-      type: 'participant_transfer',
-      identity,
-      sourceRoom,
-      destinationRoom,
-      timestamp: Date.now(),
-    }));
+    // A lista usada pela interface precisa representar participantes realmente
+    // conectados ao LiveKit. Validamos isso no backend antes da operação.
+    const sourceParticipants = await service.listParticipants(sourceRoom);
+    const liveParticipant = (sourceParticipants || []).find(
+      (participant) => participant.identity === identity,
+    );
 
-    try {
-      await service.sendData(
-        sourceRoom,
-        transferPayload,
-        0,
-        {
-          destinationIdentities: [identity],
-          topic: 'cpx-participant-transfer',
-        },
-      );
-    } catch (error) {
-      console.error('Participant transfer sendData:', error);
+    if (!liveParticipant) {
       return Response.json({
-        error: 'Não foi possível avisar o participante sobre a transferência.',
-        code: 'TRANSFER_SIGNAL_ERROR',
-      }, { status: 502 });
+        error: 'O participante não está conectado ao LiveKit nessa call. Atualize a lista e tente novamente.',
+        code: 'PARTICIPANT_NOT_CONNECTED',
+      }, { status: 409 });
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 700));
-
-    try {
-      await service.removeParticipant(sourceRoom, identity);
-    } catch (removeError) {
-      const status = Number(removeError?.status ?? removeError?.statusCode ?? 0);
-      const message = String(removeError?.message ?? removeError?.reason ?? '').toLowerCase();
-      if (!(status === 404 || message.includes('not found') || message.includes('does not exist'))) {
-        throw removeError;
-      }
-    }
+    await service.moveParticipant(sourceRoom, identity, destinationRoom);
 
     const displayName = requestedName || identity;
 
