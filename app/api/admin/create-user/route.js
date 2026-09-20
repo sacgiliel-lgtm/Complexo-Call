@@ -4,6 +4,22 @@ import { getSupabaseAdmin } from '../../../../lib/supabaseAdmin';
 import { requireAdminFromClerk } from '../../../../lib/clerkAuth';
 import { logDiscordEvent } from '../../../../lib/discordLogger';
 
+
+function getActivationSigningSecret() {
+  const secret = process.env.CLERK_SECRET_KEY?.trim();
+  if (!secret) throw new Error('CLERK_SECRET_KEY não está configurada.');
+  return secret;
+}
+
+function createActivationToken(profileId, expiresAt) {
+  const payload = `${profileId}.${expiresAt}`;
+  const signature = crypto
+    .createHmac('sha256', getActivationSigningSecret())
+    .update(payload)
+    .digest('base64url');
+  return `${profileId}.${expiresAt}.${signature}`;
+}
+
 function getSiteUrl(request) {
   const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();
   if (configured) return configured.replace(/\/$/, '');
@@ -27,16 +43,18 @@ export async function POST(request) {
 
     const client = await clerkClient();
     const siteUrl = getSiteUrl(request);
-    const invitation = await client.invitations.createInvitation({
-      emailAddress: email,
-      expiresInDays: 7,
-      redirectUrl: `${siteUrl}/?activate=1`,
-      publicMetadata: { role },
-    });
-
     const admin = getSupabaseAdmin();
     const pendingId = crypto.randomUUID();
     const pendingUsername = `Pendente-${pendingId.slice(0, 8)}`;
+    const invitationExpiresAt = Date.now() + (7 * 24 * 60 * 60 * 1000);
+    const activationToken = createActivationToken(pendingId, invitationExpiresAt);
+
+    const invitation = await client.invitations.createInvitation({
+      emailAddress: email,
+      expiresInDays: 7,
+      redirectUrl: `${siteUrl}/?activate=1&activation_token=${encodeURIComponent(activationToken)}`,
+      publicMetadata: { role },
+    });
     const { error: profileError } = await admin.from('profiles').insert({
       id: pendingId,
       username: pendingUsername,
