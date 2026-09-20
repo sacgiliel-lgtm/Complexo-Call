@@ -97,9 +97,7 @@ export async function POST(request) {
         );
 
         for (const invitation of pendingInvitations) {
-          await client.invitations.revokeInvitation({
-            invitationId: invitation.id,
-          });
+          await client.invitations.revokeInvitation(invitation.id);
           revokedInvitations += 1;
         }
       }
