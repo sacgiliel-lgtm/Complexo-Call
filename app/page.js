@@ -213,15 +213,17 @@ export default function Home() {
     const params = new URLSearchParams(window.location.search);
     const invitationTicket = params.get('__clerk_ticket');
     const invitationStatus = params.get('__clerk_status');
+    const activationToken = params.get('activation_token');
 
     if (username.length < 4 || username.length > 64) return setError('O username deve ter entre 4 e 64 caracteres.');
     if (activationPassword.length < 8) return setError('A senha deve ter pelo menos 8 caracteres.');
     if (activationPassword !== activationConfirmPassword) return setError('As senhas não conferem.');
     setSubmitting(true);
-    let invitationEmail = '';
-
     try {
       if (invitationTicket && !isSignedIn && invitationStatus !== 'sign_in') {
+        if (!activationToken) {
+          throw new Error('Este convite não possui uma referência de ativação válida. Solicite um novo convite ao administrador.');
+        }
         if (!signUp) throw new Error('A autenticação ainda está carregando. Tente novamente em alguns segundos.');
 
         if (!signUpLoaded || !signUp || !setActiveSignUp) throw new Error('A autenticação ainda está carregando. Tente novamente em alguns segundos.');
@@ -238,7 +240,8 @@ export default function Home() {
           throw new Error(signUpAttempt.error.message || 'Não foi possível aceitar o convite.');
         }
 
-        invitationEmail = signUpAttempt?.emailAddress || '';
+        // O e-mail original não é confiado no navegador. O servidor recupera
+        // o endereço diretamente do perfil pendente usando o token assinado.
 
         // O Clerk pode retornar missing_requirements mesmo após criar o sign-up.
         // Nesse caso, completamos os campos obrigatórios usando os mesmos dados
@@ -264,8 +267,6 @@ export default function Home() {
             password: activationPassword,
           });
 
-          invitationEmail = signUpAttempt?.emailAddress || invitationEmail;
-
           if (signUpAttempt?.error) {
             console.error('Clerk invitation sign-up update error:', signUpAttempt.error);
             throw new Error(signUpAttempt.error.message || 'Não foi possível concluir os dados da conta.');
@@ -281,10 +282,6 @@ export default function Home() {
           throw new Error('O convite foi aceito, mas o Clerk ainda não concluiu a criação da conta.');
         }
 
-        if (!invitationEmail) {
-          throw new Error('Não foi possível identificar o e-mail associado ao convite. Solicite um novo convite ao administrador.');
-        }
-
         await setActiveSignUp({ session: signUpAttempt.createdSessionId });
       }
 
@@ -298,7 +295,7 @@ export default function Home() {
         body: JSON.stringify({
           username,
           password: invitationTicket ? undefined : activationPassword,
-          email: invitationTicket ? invitationEmail : undefined,
+          activationToken: invitationTicket ? activationToken : undefined,
         }),
       });
       const json = await response.json();
