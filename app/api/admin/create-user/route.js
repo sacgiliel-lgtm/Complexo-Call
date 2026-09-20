@@ -32,23 +32,17 @@ export async function POST(request) {
 
     const body = await request.json().catch(() => ({}));
     const email = String(body.email || '').trim().toLowerCase();
-    const username = String(body.username || '').trim();
     const role = body.role;
 
-    if (!email || !username || !['admin', 'membro'].includes(role)) {
-      return Response.json({ error: 'Preencha todos os campos corretamente.' }, { status: 400 });
+    if (!email || !['admin', 'membro'].includes(role)) {
+      return Response.json({ error: 'Preencha e-mail e cargo corretamente.' }, { status: 400 });
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return Response.json({ error: 'Informe um e-mail válido.' }, { status: 400 });
     }
-    if (username.length < 2 || username.length > 32) {
-      return Response.json({ error: 'Username deve ter entre 2 e 32 caracteres.' }, { status: 400 });
-    }
-
     const redirectTo = `${getSiteUrl(request)}/?activate=1`;
     const { data: inviteData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
       data: {
-        username,
         role,
       },
       redirectTo,
@@ -63,9 +57,10 @@ export async function POST(request) {
       return Response.json({ error: 'O Supabase não retornou o usuário convidado.' }, { status: 500 });
     }
 
+    const pendingUsername = `Pendente-${invitedUser.id.slice(0, 8)}`;
     const { error: profileError } = await admin.from('profiles').upsert({
       id: invitedUser.id,
-      username,
+      username: pendingUsername,
       role,
       status: 'ativo',
       presence_status: 'offline',
@@ -89,7 +84,7 @@ export async function POST(request) {
       emailSent: true,
       user: {
         id: invitedUser.id,
-        username,
+        username: null,
         role,
         email,
       },
