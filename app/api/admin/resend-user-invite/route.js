@@ -2,7 +2,6 @@ import { clerkClient } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '../../../../lib/supabaseAdmin';
 import { requireAdminFromClerk } from '../../../../lib/clerkAuth';
 import { logDiscordEvent } from '../../../../lib/discordLogger';
-import { sendInvitationEmail } from '../../../../lib/invitationEmail';
 
 function getSiteUrl(request) {
   const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();
@@ -39,35 +38,20 @@ export async function POST(request) {
     }
     if (!email) return Response.json({ error: 'Este usuário não possui e-mail.' }, { status: 400 });
 
-    const expiresInDays = 7;
     const siteUrl = getSiteUrl(request);
     const invitation = await client.invitations.createInvitation({
       emailAddress: email,
       expiresInDays,
-      notify: false,
       ignoreExisting: true,
       redirectUrl: `${siteUrl}/?activate=1`,
       publicMetadata: { role: targetProfile.role },
     });
 
-    try {
-      await sendInvitationEmail({
-        to: email,
-        invitationUrl: invitation.url,
-        inviterName: requester.profile?.username || requester.email || 'Administrador',
-        expiresInDays,
-        siteUrl,
-      });
-    } catch (emailError) {
-      try { await client.invitations.revokeInvitation(invitation.id); } catch {}
-      throw emailError;
-    }
-
     await logDiscordEvent({
       action: 'user_invite_resent',
       actor: { ...requester.profile, id: requester.id, email: requester.email },
       target: targetProfile.username || email,
-      details: `Reenvio do convite Clerk com template CPX para ${email}`,
+      details: `Reenvio do convite Clerk para ${email}`,
     });
 
     return Response.json({ success: true, emailSent: true, invitationId: invitation.id, message: `E-mail de ativação reenviado para ${email}.` });
