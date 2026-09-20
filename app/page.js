@@ -120,7 +120,8 @@ export default function Home() {
     setError('');
     setNotice('');
 
-    const identifier = email.trim().toLowerCase();
+    const identifierInput = email.trim();
+    const identifier = identifierInput.includes('@') ? identifierInput.toLowerCase() : identifierInput;
     if (!identifier) return setError('Informe seu e-mail.');
     if (!password) return setError('Informe sua senha.');
     if (!signInLoaded || !signIn || !setActiveSignIn) return setError('A autenticação ainda está carregando. Tente novamente.');
