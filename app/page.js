@@ -38,19 +38,41 @@ export default function Home() {
       const params = new URLSearchParams(window.location.search);
       const activateParam = params.get('activate') === '1';
       const invitationTicket = params.get('__clerk_ticket');
+      const invitationStatus = params.get('__clerk_status');
       const inviteParam = params.get('invite');
       if (inviteParam) { setCode(inviteParam.toUpperCase()); setMode('invite'); }
 
-      // Convites de aplicação do Clerk chegam com __clerk_ticket.
-      // Nesse ponto o usuário ainda não tem sessão; o ticket será consumido
-      // pelo signUp.create() quando ele enviar a senha escolhida.
+      // Clerk adiciona __clerk_ticket e __clerk_status aos convites.
+      // sign_up: usamos nossa própria tela para escolher username e senha.
+      // sign_in: o e-mail já possui conta Clerk; autenticamos silenciosamente
+      // com o ticket e seguimos para o servidor.
       if (invitationTicket && !isSignedIn) {
-        if (mounted) {
-          setActivationUsername('');
-          setActivationMode(true);
-          setLoading(false);
+        if (invitationStatus === 'sign_in') {
+          try {
+            if (!signIn) throw new Error('A autenticação ainda está carregando.');
+            const { error: ticketError } = await signIn.ticket({ ticket: invitationTicket });
+            if (ticketError) throw new Error(ticketError.message || 'Não foi possível aceitar o convite.');
+            if (signIn.status !== 'complete') throw new Error('O convite exige uma etapa de autenticação adicional.');
+            const { error: finalizeError } = await signIn.finalize({ navigate: () => {} });
+            if (finalizeError) throw new Error(finalizeError.message || 'Não foi possível iniciar sua sessão.');
+            window.history.replaceState({}, '', '/');
+            router.replace('/servidor');
+            return;
+          } catch (invitationError) {
+            if (mounted) setError(invitationError.message || 'Não foi possível aceitar o convite.');
+            if (mounted) setLoading(false);
+            return;
+          }
         }
-        return;
+
+        if (invitationStatus === 'sign_up' || !invitationStatus) {
+          if (mounted) {
+            setActivationUsername('');
+            setActivationMode(true);
+            setLoading(false);
+          }
+          return;
+        }
       }
 
       if (!isSignedIn) {
@@ -153,7 +175,9 @@ export default function Home() {
     setError('');
     setNotice('');
     const username = activationUsername.trim();
-    const invitationTicket = new URLSearchParams(window.location.search).get('__clerk_ticket');
+    const params = new URLSearchParams(window.location.search);
+    const invitationTicket = params.get('__clerk_ticket');
+    const invitationStatus = params.get('__clerk_status');
 
     if (username.length < 2 || username.length > 32) return setError('O username deve ter entre 2 e 32 caracteres.');
     if (activationPassword.length < 8) return setError('A senha deve ter pelo menos 8 caracteres.');
@@ -161,7 +185,7 @@ export default function Home() {
     setSubmitting(true);
 
     try {
-      if (invitationTicket && !isSignedIn) {
+      if (invitationTicket && !isSignedIn && invitationStatus !== 'sign_in') {
         if (!signUp) throw new Error('A autenticação ainda está carregando. Tente novamente em alguns segundos.');
 
         const { error: signUpError } = await signUp.create({
