@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "sync:clerk-template": "node scripts/sync-clerk-template.mjs"
   },
   "dependencies": {
     "@livekit/components-react": "^2.6.1",
