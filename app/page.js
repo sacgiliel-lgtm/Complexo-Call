@@ -128,19 +128,33 @@ export default function Home() {
 
     setSubmitting(true);
     try {
-      let signInAttempt = await signIn.create({
-        identifier,
-        password,
-      });
+      let signInAttempt;
+      let initialSignInError = null;
 
-      if (signInAttempt?.error) {
-        const clerkCode = signInAttempt.error?.errors?.[0]?.code || signInAttempt.error?.code;
+      try {
+        signInAttempt = await signIn.create({
+          identifier,
+          password,
+        });
+        initialSignInError = signInAttempt?.error || null;
+      } catch (error) {
+        // O Clerk pode lançar o erro 422 diretamente em vez de devolvê-lo
+        // no objeto SignIn. Guardamos a exceção para decidir se o fallback
+        // por username deve ser usado.
+        initialSignInError = error;
+      }
 
-        // Algumas contas criadas por convite podem ter o e-mail salvo no
-        // Complexo Call, mas o Clerk não o expõe como identificador de sign-in.
-        // Nesse caso, resolvemos o e-mail para o username da própria conta e
-        // repetimos a autenticação pelo identificador que já funciona.
-        if (identifier.includes('@') && clerkCode === 'form_identifier_not_found') {
+      if (initialSignInError) {
+        const clerkCode =
+          initialSignInError?.errors?.[0]?.code
+          || initialSignInError?.code
+          || '';
+        const clerkStatus = initialSignInError?.status || initialSignInError?.statusCode;
+
+        if (
+          identifier.includes('@')
+          && (clerkCode === 'form_identifier_not_found' || clerkStatus === 422)
+        ) {
           const resolveResponse = await fetch('/api/auth/resolve-login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -157,6 +171,8 @@ export default function Home() {
             identifier: resolveJson.username,
             password,
           });
+        } else {
+          throw initialSignInError;
         }
       }
 
