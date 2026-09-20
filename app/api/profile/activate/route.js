@@ -1,23 +1,73 @@
 import { clerkClient } from '@clerk/nextjs/server';
-import { syncClerkProfile } from '../../../../lib/clerkAuth';
+import { getClerkIdentity, syncClerkProfile } from '../../../../lib/clerkAuth';
+import { getSupabaseAdmin } from '../../../../lib/supabaseAdmin';
 import { logDiscordEvent } from '../../../../lib/discordLogger';
 
 export async function POST(request) {
   try {
-    const actor = await syncClerkProfile();
-    if (!actor.ok) return Response.json({ error: actor.error }, { status: actor.status || 401 });
-
     const body = await request.json().catch(() => ({}));
     const username = String(body.username || '').trim();
     const password = typeof body.password === 'string' ? body.password : '';
+    const invitedEmail = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
 
     if (username.length < 4 || username.length > 64) return Response.json({ error: 'O username deve ter entre 4 e 64 caracteres.' }, { status: 400 });
     if (password && (password.length < 8 || password.length > 128)) return Response.json({ error: 'A senha deve ter entre 8 e 128 caracteres.' }, { status: 400 });
+    if (invitedEmail && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(invitedEmail)) return Response.json({ error: 'O e-mail do convite é inválido.' }, { status: 400 });
+
+    const identity = await getClerkIdentity();
+    if (!identity) return Response.json({ error: 'Sessão inválida ou expirada.' }, { status: 401 });
+
+    const admin = getSupabaseAdmin();
+    const client = await clerkClient();
+
+    // O e-mail informado pelo fluxo de convite vem do próprio SignUp criado
+    // a partir do ticket do Clerk. Só o aceitamos quando corresponde ao cadastro
+    // pendente criado anteriormente pelo administrador.
+    if (invitedEmail) {
+      const { data: pendingProfile, error: pendingError } = await admin
+        .from('profiles')
+        .select('id,pending_email,clerk_user_id')
+        .ilike('pending_email', invitedEmail)
+        .maybeSingle();
+
+      if (pendingError) {
+        console.error('Activate account: pending profile lookup failed.', pendingError);
+        return Response.json({ error: 'Não foi possível validar o convite de ativação.' }, { status: 500 });
+      }
+
+      if (!pendingProfile || (pendingProfile.clerk_user_id && pendingProfile.clerk_user_id !== identity.userId)) {
+        return Response.json({ error: 'O e-mail do convite não corresponde a uma solicitação pendente desta conta.' }, { status: 403 });
+      }
+
+      const clerkUser = await client.users.getUser(identity.userId);
+      const normalizedCurrent = clerkUser.emailAddresses?.find(
+        (item) => String(item.emailAddress || '').trim().toLowerCase() === invitedEmail
+      );
+
+      if (!normalizedCurrent) {
+        await client.emailAddresses.createEmailAddress({
+          userId: identity.userId,
+          emailAddress: invitedEmail,
+          primary: true,
+          verified: true,
+        });
+      } else {
+        const isVerified = normalizedCurrent.verification?.status === 'verified';
+        const isPrimary = normalizedCurrent.id === clerkUser.primaryEmailAddressId;
+        if (!isVerified || !isPrimary) {
+          await client.emailAddresses.updateEmailAddress(normalizedCurrent.id, {
+            verified: true,
+            primary: true,
+          });
+        }
+      }
+    }
+
+    const actor = await syncClerkProfile();
+    if (!actor.ok) return Response.json({ error: actor.error }, { status: actor.status || 401 });
 
     const { data: duplicate } = await actor.admin.from('profiles').select('id').ilike('username', username).neq('id', actor.id).maybeSingle();
     if (duplicate) return Response.json({ error: 'Esse username já está em uso. Escolha outro.' }, { status: 409 });
-
-    const client = await clerkClient();
     const updates = { username };
     if (password) updates.password = password;
     try {
