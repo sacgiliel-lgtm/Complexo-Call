@@ -246,7 +246,19 @@ Acesse `http://localhost:3000`. Para testar o fluxo de administrador, crie o pri
 
 ## Ativação de contas por e-mail
 - O administrador cria contas informando somente e-mail e cargo.
-- O Supabase envia o convite de ativação usando o SMTP configurado (ex.: Brevo).
+- Nesta branch, o Clerk envia o convite de ativação; o Supabase permanece como banco de dados.
 - Na primeira entrada pelo convite, a pessoa escolhe o próprio username e define a senha.
 - Admins podem ver o estado de confirmação do e-mail e reenviar a ativação para contas pendentes.
 - Endpoint de reenvio: `POST /api/admin/resend-user-invite`.
+
+
+## Migração para Clerk — branch `feature/clerk-auth-migration`
+
+- Clerk substitui o Supabase Auth para login, sessões, senhas e convites.
+- Supabase continua sendo usado para dados da aplicação, LiveKit e Realtime.
+- Configure `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` e `CLERK_SECRET_KEY` nos ambientes da Vercel.
+- Execute `supabase/migrations/20260920_clerk_auth.sql` no projeto Supabase antes do primeiro teste.
+- No Clerk, habilite e-mail/senha e username no cadastro e configure o fluxo de convite.
+- Contas são criadas pelo administrador por convite; o papel `admin` ou `membro` é enviado em metadata do convite.
+- O perfil do Supabase é vinculado ao usuário Clerk por `profiles.clerk_user_id`; `pending_email` permite vincular o convite ao perfil antes do cadastro.
+- Usuários antigos do Supabase Auth não são migrados automaticamente nesta branch; para os testes atuais, crie novamente as contas pelo fluxo de convite do Clerk.
