@@ -54,8 +54,13 @@ export async function POST(request) {
       if (body.id === user.id && body.status === 'suspenso') return Response.json({ error: 'Você não pode suspender sua própria conta.' }, { status: 400 });
       if (body.id === user.id && body.role !== 'admin') return Response.json({ error: 'Você não pode retirar seu próprio cargo de administrador.' }, { status: 400 });
       const { data: target } = await admin.from('profiles').select('username').eq('id', body.id).maybeSingle();
+      const { data: targetIdentity } = await admin.from('profiles').select('username,clerk_user_id').eq('id', body.id).maybeSingle();
       const { error } = await admin.from('profiles').update({ role: body.role, status: body.status }).eq('id', body.id);
       if (error) throw error;
+      if (targetIdentity?.clerk_user_id) {
+        const client = await clerkClient();
+        await client.users.updateUserMetadata(targetIdentity.clerk_user_id, { publicMetadata: { role: body.role } });
+      }
       await logActivity(admin, profile, 'user_updated', target?.username || body.id, `cargo=${body.role}; status=${body.status}`);
       return Response.json({ success: true });
     }
