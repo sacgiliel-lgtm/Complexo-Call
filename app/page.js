@@ -108,7 +108,7 @@ export default function Home() {
     })();
 
     return () => { mounted = false; };
-  }, [clerkLoaded, isSignedIn, router, signOut]);
+  }, [clerkLoaded, isSignedIn, router, signOut, signIn]);
 
 
   function changeMode(next) { setMode(next); setError(''); setNotice(''); }
