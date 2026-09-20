@@ -1,6 +1,11 @@
 -- Clerk authentication migration.
 -- Supabase remains the application database; Clerk becomes the identity provider.
 
+-- The legacy Supabase Auth schema used profiles.id -> auth.users.id.
+-- Clerk owns identities now, so profiles.id must be an independent internal UUID.
+alter table public.profiles
+  drop constraint if exists profiles_id_fkey;
+
 alter table public.profiles
   add column if not exists clerk_user_id text,
   add column if not exists pending_email text;
