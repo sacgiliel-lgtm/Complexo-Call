@@ -242,3 +242,11 @@ Acesse `http://localhost:3000`. Para testar o fluxo de administrador, crie o pri
 - O tema é escolhido pelo usuário e salvo em `localStorage` (preferência de interface, não dado sensível).
 - Convites expirados, revogados ou já usados continuam visíveis no histórico do Centro de Comando, apenas com o status correspondente.
 - Ao remover um canal, as mensagens associadas a ele também são removidas (`on delete cascade` em `channel_messages`).
+
+
+## Ativação de contas por e-mail
+- O administrador cria contas informando somente e-mail e cargo.
+- O Supabase envia o convite de ativação usando o SMTP configurado (ex.: Brevo).
+- Na primeira entrada pelo convite, a pessoa escolhe o próprio username e define a senha.
+- Admins podem ver o estado de confirmação do e-mail e reenviar a ativação para contas pendentes.
+- Endpoint de reenvio: `POST /api/admin/resend-user-invite`.
