@@ -43,6 +43,13 @@ export default function Home() {
         return;
       }
 
+      // O destino normal após o login é /servidor. Só sincronizamos aqui
+      // quando o usuário acabou de aceitar um convite e precisa ativar a conta.
+      if (!activateParam) {
+        router.replace('/servidor');
+        return;
+      }
+
       try {
         const response = await fetch('/api/profile/sync', { cache: 'no-store' });
         const json = await response.json();
@@ -55,12 +62,8 @@ export default function Home() {
           throw new Error(json.error || 'Não foi possível carregar seu perfil.');
         }
         if (!mounted) return;
-        if (activateParam) {
-          setActivationUsername(json.profile?.username?.startsWith('Pendente-') ? '' : (json.profile?.username || ''));
-          setActivationMode(true);
-        } else {
-          router.replace('/servidor');
-        }
+        setActivationUsername(json.profile?.username?.startsWith('Pendente-') ? '' : (json.profile?.username || ''));
+        setActivationMode(true);
       } catch (error) {
         if (mounted) setError(error.message || 'Não foi possível inicializar sua conta.');
       } finally {
