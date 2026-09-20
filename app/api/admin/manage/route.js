@@ -177,7 +177,7 @@ export async function GET(request) {
     if (auth.error) return auth.error;
     const { admin } = auth;
     const [{ data: profiles, error: usersError }, { data: invites, error: invitesError }, { data: channels, error: channelsError }, { data: settings, error: settingsError }, { data: activities, error: activityError }] = await Promise.all([
-      admin.from('profiles').select('id,username,role,status,presence_status,last_seen_at,created_at').order('created_at', { ascending: false }),
+      admin.from('profiles').select('id,username,role,status,presence_status,last_seen_at,created_at,clerk_user_id,pending_email').order('created_at', { ascending: false }),
       admin.from('invites').select('id,code_preview,guest_name,type,room_name,expires_at,used_at,revoked_at,created_at').order('created_at', { ascending: false }).limit(100),
       admin.from('channels').select('*').order('sort_order', { ascending: true }),
       admin.from('server_settings').select('*').eq('id', 1).maybeSingle(),
