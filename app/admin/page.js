@@ -23,7 +23,7 @@ export default function AdminDashboard() {
   const [confirm, setConfirm] = useState(null);
   const [generatedCode, setGeneratedCode] = useState('');
   const [createdUser, setCreatedUser] = useState(null);
-  const [newUser, setNewUser] = useState({ email: '', username: '', role: 'membro' });
+  const [newUser, setNewUser] = useState({ email: '', role: 'membro' });
   const [inviteForm, setInviteForm] = useState({ guestName: '', expiresMinutes: 30 });
   const [channelForm, setChannelForm] = useState({ id: '', name: '', category: 'GERAL', description: '', icon: 'voice', sort_order: 0, guest_access: false, is_waiting_room: false, is_active: true });
   const [settingsForm, setSettingsForm] = useState({ maintenance_mode: false, discord_logs: true, max_users: 'ilimitado', call_invite_enabled: true, call_invite_expires_minutes: 60 });
@@ -75,7 +75,7 @@ export default function AdminDashboard() {
     try {
       const response = await fetch('/api/admin/create-user', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify(newUser) });
       const json = await response.json(); if (!response.ok) throw new Error(json.error || 'Não foi possível criar o usuário.');
-      setNewUser({ email: '', username: '', role: 'membro' });
+      setNewUser({ email: '', role: 'membro' });
       setCreatedUser(json.user || null);
       toast(json.message || `Usuário ${json.user?.username || ''} criado e convite enviado.`);
       await load();
@@ -165,9 +165,8 @@ export default function AdminDashboard() {
       <div className="modal-actions"><button type="button" className="primary-btn" onClick={() => { setUserModal(false); setCreatedUser(null); }}>Concluir</button></div>
     </div> : <form onSubmit={createUser}>
       <div className="field"><label>E-mail</label><input className="input" type="email" required value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} /></div>
-      <div className="field"><label>Username</label><input className="input" maxLength={32} required value={newUser.username} onChange={(e) => setNewUser({ ...newUser, username: e.target.value })} /></div>
       <div className="field"><label>Cargo</label><select className="input" value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}><option value="membro">Membro</option><option value="admin">Administrador</option></select></div>
-      <div className="helper" style={{ lineHeight: 1.5, marginTop: 4 }}>Ao criar, o Complexo Call enviará automaticamente um e-mail de ativação para o endereço informado. A pessoa definirá a própria senha pelo link recebido.</div>
+      <div className="helper" style={{ lineHeight: 1.5, marginTop: 4 }}>O username será escolhido pela própria pessoa durante a ativação. O Complexo Call enviará automaticamente um e-mail para o endereço informado.</div>
       <div className="modal-actions"><button type="button" className="ghost-btn" onClick={() => setUserModal(false)}>Cancelar</button><button className="primary-btn" disabled={busy}>{busy ? <Spinner label="Enviando convite..." /> : 'Criar e enviar ativação'}</button></div>
     </form>}
   </Modal>
