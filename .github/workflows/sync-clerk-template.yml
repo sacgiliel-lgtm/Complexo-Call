@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/clerk-auth-migration
+      - main
     paths:
       - 'emails/clerk/invitation.html'
       - 'scripts/sync-clerk-template.mjs'
