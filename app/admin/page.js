@@ -126,11 +126,11 @@ export default function AdminDashboard() {
   }
 
   const q = search.trim().toLowerCase();
-  const filteredUsers = useMemo(() => data.users.filter((user) => !q || `${user.username} ${user.role} ${user.status}`.toLowerCase().includes(q)), [data.users, q]);
+  const filteredUsers = useMemo(() => data.users.filter((user) => !q || `${user.username} ${user.email || ''} ${user.role} ${user.status}`.toLowerCase().includes(q)), [data.users, q]);
   const filteredInvites = useMemo(() => data.invites.filter((invite) => !q || `${invite.guest_name} ${invite.code_preview} ${invite.type}`.toLowerCase().includes(q)), [data.invites, q]);
   const filteredChannels = useMemo(() => data.channels.filter((channel) => !q || `${channel.name} ${channel.category} ${channel.description || ''}`.toLowerCase().includes(q)), [data.channels, q]);
   function inviteStatus(invite) { if (invite.used_at) return ['Usado', 'neutral']; if (invite.revoked_at) return ['Revogado', 'red']; if (new Date(invite.expires_at).getTime() <= Date.now()) return ['Expirado', 'yellow']; return ['Ativo', 'green']; }
-  function activityLabel(item) { const map = { user_created: 'criou o usuário', user_updated: 'alterou o usuário', user_deleted: 'excluiu o usuário', invite_created: 'gerou convite para', invite_revoked: 'revogou convite', channel_created: 'criou o canal', channel_updated: 'alterou o canal', channel_deleted: 'excluiu o canal', participant_disconnected: 'desconectou participante', participant_muted: 'silenciou participante', settings_updated: 'atualizou configurações', profile_updated: 'atualizou o perfil' }; return `${item.actor_name || 'Admin'} ${map[item.action] || item.action}${item.target ? ` • ${item.target}` : ''}`; }
+  function activityLabel(item) { const map = { user_created: 'criou o usuário', user_updated: 'alterou o usuário', user_deleted: 'excluiu o usuário', user_invite_resent: 'reenviou a ativação para', account_activated: 'ativou a própria conta', invite_created: 'gerou convite para', invite_revoked: 'revogou convite', channel_created: 'criou o canal', channel_updated: 'alterou o canal', channel_deleted: 'excluiu o canal', participant_disconnected: 'desconectou participante', participant_muted: 'silenciou participante', settings_updated: 'atualizou configurações', profile_updated: 'atualizou o perfil' }; return `${item.actor_name || 'Admin'} ${map[item.action] || item.action}${item.target ? ` • ${item.target}` : ''}`; }
   if (loading) return <main className="login-page"><Spinner label="Carregando Centro de Comando..." /></main>;
 
   return <main className="admin-page"><div className="admin-wrap">
