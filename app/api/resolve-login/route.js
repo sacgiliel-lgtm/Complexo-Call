@@ -49,11 +49,25 @@ export async function POST(request) {
     }
 
     const client = await clerkClient();
-    const result = await client.users.getUserList({
+
+    // Primeiro usamos o filtro específico de e-mail. Se a instância não
+    // devolver o usuário por esse índice, repetimos com query, que pesquisa
+    // os atributos indexados do usuário, incluindo e-mail.
+    const exactResult = await client.users.getUserList({
       emailAddress: [email],
       limit: 10,
     });
-    const clerkUser = (result?.data || []).find((user) =>
+
+    let candidates = exactResult?.data || [];
+    if (!candidates.length) {
+      const queryResult = await client.users.getUserList({
+        query: email,
+        limit: 50,
+      });
+      candidates = queryResult?.data || [];
+    }
+
+    const clerkUser = candidates.find((user) =>
       user.emailAddresses?.some(
         (item) => String(item.emailAddress || '').trim().toLowerCase() === email
       )
