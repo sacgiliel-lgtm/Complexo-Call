@@ -3,9 +3,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Modal, Spinner } from './ui';
+import { useAuth } from '@clerk/nextjs';
 
 
 export default function AdminCategoryOrder() {
+  const { isLoaded, isSignedIn } = useAuth();
   const [visible, setVisible] = useState(false);
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -31,11 +33,7 @@ export default function AdminCategoryOrder() {
     return () => observer.disconnect();
   }, []);
 
-  async function loadCategories(currentSession = session) {
-    if (!currentSession?.access_token) {
-      setError('Sessão administrativa não encontrada.');
-      return;
-    }
+  async function loadCategories() {
     setLoading(true);
     setError('');
     setMessage('');
@@ -91,7 +89,7 @@ export default function AdminCategoryOrder() {
     try {
       const response = await fetch('/api/admin/manage', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: undefined },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'reorder-categories', categoryOrder: categories }),
       });
       const json = await response.json();
