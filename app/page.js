@@ -15,10 +15,6 @@ export default function Home() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
-  const [secondFactorCode, setSecondFactorCode] = useState('');
-  const [secondFactorStrategy, setSecondFactorStrategy] = useState('');
-  const [secondFactorDestination, setSecondFactorDestination] = useState('');
-  const [secondFactorRequired, setSecondFactorRequired] = useState(false);
   const [guestName, setGuestName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -153,52 +149,7 @@ export default function Home() {
       }
 
       if (signInAttempt?.status === 'needs_second_factor') {
-        const factors = signInAttempt.supportedSecondFactors || [];
-        const emailFactor = factors.find((factor) => factor.strategy === 'email_code');
-        const phoneFactor = factors.find((factor) => factor.strategy === 'phone_code');
-        const totpFactor = factors.find((factor) => factor.strategy === 'totp');
-        const backupFactor = factors.find((factor) => factor.strategy === 'backup_code');
-
-        if (emailFactor) {
-          const prepared = await signIn.prepareSecondFactor({
-            strategy: 'email_code',
-            emailAddressId: emailFactor.emailAddressId,
-          });
-          if (prepared?.error) throw new Error(prepared.error.message || 'Não foi possível enviar o código de verificação.');
-          setSecondFactorStrategy('email_code');
-          setSecondFactorDestination(emailFactor.safeIdentifier || 'seu e-mail');
-          setSecondFactorRequired(true);
-          return;
-        }
-
-        if (phoneFactor) {
-          const prepared = await signIn.prepareSecondFactor({
-            strategy: 'phone_code',
-            phoneNumberId: phoneFactor.phoneNumberId,
-          });
-          if (prepared?.error) throw new Error(prepared.error.message || 'Não foi possível enviar o código de verificação.');
-          setSecondFactorStrategy('phone_code');
-          setSecondFactorDestination(phoneFactor.safeIdentifier || 'seu telefone');
-          setSecondFactorRequired(true);
-          return;
-        }
-
-        if (totpFactor) {
-          setSecondFactorStrategy('totp');
-          setSecondFactorDestination('seu aplicativo autenticador');
-          setSecondFactorRequired(true);
-          return;
-        }
-
-        if (backupFactor) {
-          setSecondFactorStrategy('backup_code');
-          setSecondFactorDestination('seu código de recuperação');
-          setSecondFactorRequired(true);
-          return;
-        }
-
-        console.error('Clerk second factors:', factors);
-        throw new Error('Sua conta exige uma segunda etapa, mas nenhum método compatível está disponível nesta interface.');
+        throw new Error('A autenticação em duas etapas está ativada para esta conta. Desative-a no Clerk para entrar somente com e-mail e senha.');
       }
 
       throw new Error('Não foi possível concluir o login. Verifique seus dados e tente novamente.');
@@ -209,42 +160,6 @@ export default function Home() {
     }
   }
 
-
-  async function verifySecondFactor(event) {
-    event.preventDefault();
-    setError('');
-    setNotice('');
-
-    const verificationCode = secondFactorCode.trim();
-    if (!verificationCode) return setError('Informe o código de verificação.');
-    if (!signInLoaded || !signIn || !setActiveSignIn) return setError('A autenticação ainda está carregando. Tente novamente.');
-
-    setSubmitting(true);
-    try {
-      const attempt = await signIn.attemptSecondFactor({
-        strategy: secondFactorStrategy,
-        code: verificationCode,
-      });
-
-      if (attempt?.error) throw new Error(attempt.error.message || 'Código de verificação inválido.');
-
-      if (attempt?.status !== 'complete') {
-        throw new Error('Não foi possível concluir a verificação. Confira o código e tente novamente.');
-      }
-
-      await setActiveSignIn({ session: attempt.createdSessionId });
-      setSecondFactorRequired(false);
-      setSecondFactorCode('');
-      setSecondFactorStrategy('');
-      setSecondFactorDestination('');
-      router.replace('/servidor');
-    } catch (verificationError) {
-      console.error('Clerk second-factor error:', verificationError);
-      setError(verificationError.message || 'Não foi possível verificar o código.');
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   async function activateAccount(event) {
     event.preventDefault();
@@ -350,31 +265,6 @@ export default function Home() {
   }
 
   if (loading || !clerkLoaded) return <main className="login-page"><Spinner label="Preparando seu acesso..." /></main>;
-
-  if (secondFactorRequired) {
-    const destinationText = secondFactorStrategy === 'email_code'
-      ? `Enviamos um código de verificação para ${secondFactorDestination}.`
-      : secondFactorStrategy === 'phone_code'
-        ? `Enviamos um código de verificação para ${secondFactorDestination}.`
-        : secondFactorStrategy === 'totp'
-          ? 'Abra seu aplicativo autenticador e informe o código de 6 dígitos.'
-          : 'Informe um código de recuperação da sua conta.';
-
-    return <main className="login-page">
-      <section className="cpx-home-auth" style={{ width: 'min(100%, 470px)', margin: 'auto' }}>
-        <div className="cpx-home-auth-inner">
-          <div className="cpx-home-auth-head"><span className="cpx-home-auth-label">Verificação de segurança</span><h2>Confirme seu acesso</h2><p>{destinationText}</p></div>
-          {error && <div className="error-box" role="alert">{error}</div>}
-          {notice && <div className="success-box">{notice}</div>}
-          <form onSubmit={verifySecondFactor} style={{ display: 'grid', gap: 13 }}>
-            <div className="field"><label htmlFor="second-factor-code">Código de verificação</label><input id="second-factor-code" className="input" type="text" inputMode="numeric" autoComplete="one-time-code" autoFocus maxLength={32} placeholder={secondFactorStrategy === 'backup_code' ? 'Código de recuperação' : '000000'} value={secondFactorCode} onChange={(e) => setSecondFactorCode(e.target.value)} required /></div>
-            <button className="primary-btn cpx-home-primary" disabled={submitting}>{submitting ? <Spinner label="Verificando..." /> : <><Icon name="shield" size={16} /> Confirmar acesso</>}</button>
-            <button type="button" className="ghost-btn" disabled={submitting} onClick={() => { setSecondFactorRequired(false); setSecondFactorCode(''); setSecondFactorStrategy(''); setSecondFactorDestination(''); }}>Voltar</button>
-          </form>
-        </div>
-      </section>
-    </main>;
-  }
 
   if (activationMode) return <main className="login-page">
     <section className="cpx-home-auth" style={{ width: 'min(100%, 470px)', margin: 'auto' }}>
