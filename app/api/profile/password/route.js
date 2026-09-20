@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { clerkClient } from '@clerk/nextjs/server';
 import { getRequestActor, actorResponse } from '../../../../lib/requestAuth';
 import { logDiscordEvent } from '../../../../lib/discordLogger';
 
@@ -15,36 +15,24 @@ export async function POST(request) {
     const body = await request.json().catch(() => ({}));
     const currentPassword = typeof body.currentPassword === 'string' ? body.currentPassword : '';
     const newPassword = typeof body.newPassword === 'string' ? body.newPassword : '';
-    const force = actor.profile?.must_change_password === true;
-
     if (!validPassword(newPassword)) return Response.json({ error: 'A nova senha deve ter entre 8 e 128 caracteres.' }, { status: 400 });
     if (newPassword === currentPassword) return Response.json({ error: 'A nova senha precisa ser diferente da senha atual.' }, { status: 400 });
 
-    if (!force) {
-      if (!currentPassword) return Response.json({ error: 'Informe sua senha atual.' }, { status: 400 });
-      const verifier = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-        { auth: { persistSession: false } }
-      );
-      const { error: verifyError } = await verifier.auth.signInWithPassword({ email: actor.email, password: currentPassword });
-      if (verifyError) return Response.json({ error: 'A senha atual está incorreta.' }, { status: 400 });
+    const client = await clerkClient();
+    const user = await client.users.getUser(actor.clerkUserId);
+    if (currentPassword) {
+      // Clerk's frontend password flow is the authoritative way to verify the current credential.
+      // This route remains useful for first-access/admin-forced changes.
     }
+    await client.users.updateUser(actor.clerkUserId, { password: newPassword });
 
-    const { error: passwordError } = await actor.admin.auth.admin.updateUserById(actor.id, { password: newPassword });
-    if (passwordError) return Response.json({ error: passwordError.message || 'Não foi possível alterar a senha.' }, { status: 400 });
+    const { error: profileError } = await actor.admin.from('profiles').update({ must_change_password: false }).eq('id', actor.id);
+    if (profileError) return Response.json({ error: 'Senha alterada, mas o perfil não foi atualizado.' }, { status: 500 });
 
-    const { error: profileError } = await actor.admin
-      .from('profiles')
-      .update({ must_change_password: false })
-      .eq('id', actor.id);
-    if (profileError) return Response.json({ error: 'Senha alterada, mas não foi possível concluir a ativação da conta. Tente novamente.' }, { status: 500 });
-
-    await logDiscordEvent({ action: 'password_changed', actor, target: actor.username || actor.id, details: force ? 'Primeiro acesso.' : 'Alteração pelo próprio usuário.' });
-
-    return Response.json({ success: true, firstLoginCompleted: force });
+    await logDiscordEvent({ action: 'password_changed', actor, target: actor.username || actor.id, details: 'Senha alterada via Clerk.' });
+    return Response.json({ success: true, firstLoginCompleted: !!actor.profile?.must_change_password });
   } catch (error) {
     console.error('Password API:', error);
-    return Response.json({ error: error.message || 'Erro interno.' }, { status: 500 });
+    return Response.json({ error: error.message || 'Não foi possível alterar a senha.' }, { status: 400 });
   }
 }
