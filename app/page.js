@@ -175,6 +175,7 @@ export default function Home() {
     if (activationPassword.length < 8) return setError('A senha deve ter pelo menos 8 caracteres.');
     if (activationPassword !== activationConfirmPassword) return setError('As senhas não conferem.');
     setSubmitting(true);
+    let invitationEmail = '';
 
     try {
       if (invitationTicket && !isSignedIn && invitationStatus !== 'sign_in') {
@@ -193,6 +194,8 @@ export default function Home() {
           console.error('Clerk invitation sign-up error:', signUpAttempt.error);
           throw new Error(signUpAttempt.error.message || 'Não foi possível aceitar o convite.');
         }
+
+        invitationEmail = signUpAttempt?.emailAddress || '';
 
         // O Clerk pode retornar missing_requirements mesmo após criar o sign-up.
         // Nesse caso, completamos os campos obrigatórios usando os mesmos dados
@@ -217,6 +220,8 @@ export default function Home() {
             username,
             password: activationPassword,
           });
+
+          invitationEmail = signUpAttempt?.emailAddress || invitationEmail;
 
           if (signUpAttempt?.error) {
             console.error('Clerk invitation sign-up update error:', signUpAttempt.error);
@@ -243,7 +248,11 @@ export default function Home() {
       const response = await fetch('/api/profile/activate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password: invitationTicket ? undefined : activationPassword }),
+        body: JSON.stringify({
+          username,
+          password: invitationTicket ? undefined : activationPassword,
+          email: invitationTicket ? invitationEmail : undefined,
+        }),
       });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error || 'Não foi possível ativar sua conta.');
