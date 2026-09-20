@@ -2,6 +2,9 @@ import crypto from 'crypto';
 import { clerkClient } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '../../../../lib/supabaseAdmin';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 function json(data, init = {}) {
   return Response.json(data, {
     ...init,
