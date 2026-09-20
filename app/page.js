@@ -128,14 +128,41 @@ export default function Home() {
 
     setSubmitting(true);
     try {
-      const signInAttempt = await signIn.create({
+      let signInAttempt = await signIn.create({
         identifier,
         password,
       });
 
       if (signInAttempt?.error) {
+        const clerkCode = signInAttempt.error?.errors?.[0]?.code || signInAttempt.error?.code;
+
+        // Algumas contas criadas por convite podem ter o e-mail salvo no
+        // Complexo Call, mas o Clerk não o expõe como identificador de sign-in.
+        // Nesse caso, resolvemos o e-mail para o username da própria conta e
+        // repetimos a autenticação pelo identificador que já funciona.
+        if (identifier.includes('@') && clerkCode === 'form_identifier_not_found') {
+          const resolveResponse = await fetch('/api/auth/resolve-login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: identifier }),
+            cache: 'no-store',
+          });
+          const resolveJson = await resolveResponse.json().catch(() => ({}));
+
+          if (!resolveResponse.ok || !resolveJson.username) {
+            throw new Error(resolveJson.error || 'Não foi possível localizar sua conta pelo e-mail.');
+          }
+
+          signInAttempt = await signIn.create({
+            identifier: resolveJson.username,
+            password,
+          });
+        }
+      }
+
+      if (signInAttempt?.error) {
         console.error('Clerk sign-in error:', signInAttempt.error);
-        throw new Error(signInAttempt.error.message || 'E-mail ou senha incorretos.');
+        throw new Error(signInAttempt.error.message || 'E-mail, username ou senha incorretos.');
       }
 
       if (signInAttempt?.status === 'complete') {
