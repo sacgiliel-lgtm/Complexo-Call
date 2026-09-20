@@ -1,7 +1,5 @@
 'use client';
 
-import { supabase } from '../lib/supabaseClient';
-
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Modal, Spinner } from './ui';
@@ -42,7 +40,7 @@ export default function AdminCategoryOrder() {
     setError('');
     setMessage('');
     try {
-      const response = await fetch('/api/admin/manage', { headers: { Authorization: `Bearer ${currentSession.access_token}` }, cache: 'no-store' });
+      const response = await fetch('/api/admin/manage', { headers: {}, cache: 'no-store' });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error || 'Não foi possível carregar as categorias.');
       const seen = new Set();
@@ -62,9 +60,9 @@ export default function AdminCategoryOrder() {
   async function openManager() {
     setOpen(true);
     setError('');
-    const { data: { session: currentSession } } = await supabase.auth.getSession();
-    setSession(currentSession || null);
-    await loadCategories(currentSession);
+    if (!isLoaded || !isSignedIn) { setError('Sessão administrativa não disponível.'); return; }
+    setSession({ active: true });
+    await loadCategories();
   }
 
   function move(index, direction) {
@@ -93,7 +91,7 @@ export default function AdminCategoryOrder() {
     try {
       const response = await fetch('/api/admin/manage', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: undefined },
         body: JSON.stringify({ action: 'reorder-categories', categoryOrder: categories }),
       });
       const json = await response.json();
