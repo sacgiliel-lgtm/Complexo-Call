@@ -51,17 +51,29 @@ export async function POST(request) {
     const client = await clerkClient();
 
     let invitedEmail = '';
+    let pendingProfileId = '';
 
     if (activationToken) {
       const tokenData = verifyActivationToken(activationToken);
       if (!tokenData) {
         return Response.json({ error: 'O convite de ativação é inválido ou expirou. Solicite um novo convite ao administrador.' }, { status: 403 });
       }
+      pendingProfileId = tokenData.profileId;
+    } else {
+      // O caminho principal usa a referência gravada pelo Clerk no usuário
+      // a partir do publicMetadata do convite. O token da URL continua como
+      // fallback para compatibilidade com convites já emitidos.
+      const metadataProfileId = identity.user?.publicMetadata?.pendingProfileId;
+      if (typeof metadataProfileId === 'string' && metadataProfileId.trim()) {
+        pendingProfileId = metadataProfileId.trim();
+      }
+    }
 
+    if (pendingProfileId) {
       const { data: pendingProfile, error: pendingError } = await admin
         .from('profiles')
-        .select('id,pending_email,clerk_user_id')
-        .eq('id', tokenData.profileId)
+        .select('id,pending_email,clerk_user_id,role')
+        .eq('id', pendingProfileId)
         .maybeSingle();
 
       if (pendingError) {
@@ -79,9 +91,8 @@ export async function POST(request) {
 
       invitedEmail = String(pendingProfile.pending_email).trim().toLowerCase();
 
-      // Vincula o perfil pendente ao usuário Clerk antes de chamar
-      // syncClerkProfile(). Assim evitamos que uma eventual leitura
-      // momentaneamente sem e-mail crie um segundo perfil.
+      // O convite e o perfil já estão vinculados pelo administrador. Agora
+      // gravamos o ID Clerk no perfil antes de qualquer sincronização.
       const { data: existingLinkedProfile, error: existingLinkedProfileError } = await admin
         .from('profiles')
         .select('id')
