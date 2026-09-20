@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
+import { useAuth } from '@clerk/nextjs';
 import { Avatar, Badge, EmptyState, Icon, Modal, Spinner, ToastStack } from '../../components/ui';
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 const tabs = [['dashboard', 'Visão geral'], ['usuarios', 'Usuários'], ['convites', 'Convites'], ['canais', 'Canais'], ['config', 'Configuração']];
 
 export default function AdminDashboard() {
   const router = useRouter();
+  const { isLoaded, isSignedIn } = useAuth();
   const [session, setSession] = useState(null);
   const [tab, setTab] = useState('dashboard');
   const [data, setData] = useState({ users: [], invites: [], channels: [], activities: [], settings: {}, stats: {} });
@@ -35,45 +35,57 @@ export default function AdminDashboard() {
   }
 
   async function load() {
-    const { data: { session: current } } = await supabase.auth.getSession();
-    if (!current) { router.replace('/'); return; }
-    const { data: profile } = await supabase.from('profiles').select('role,status').eq('id', current.user.id).single();
-    if (!profile || profile.role !== 'admin' || profile.status === 'suspenso') { router.replace('/servidor'); return; }
-    setSession(current);
+    if (!isLoaded) return;
+    if (!isSignedIn) { router.replace('/'); return; }
     try {
-      const response = await fetch('/api/admin/manage', { headers: { Authorization: `Bearer ${current.access_token}` }, cache: 'no-store' });
+      const response = await fetch('/api/admin/manage', { cache: 'no-store' });
       const json = await response.json();
-      if (!response.ok) throw new Error(json.error || 'Erro ao carregar o painel.');
-      setData(json); setSettingsForm({
+      if (!response.ok) {
+        if (response.status === 403) { router.replace('/servidor'); return; }
+        throw new Error(json.error || 'Erro ao carregar o painel.');
+      }
+      setSession({ active: true });
+      setData(json);
+      setSettingsForm({
         maintenance_mode: !!json.settings?.maintenance_mode,
         discord_logs: json.settings?.discord_logs !== false,
         max_users: json.settings?.max_users ?? 'ilimitado',
         call_invite_enabled: json.settings?.call_invite_enabled !== false,
         call_invite_expires_minutes: Number(json.settings?.call_invite_expires_minutes) || 60,
       });
-    } catch (error) { toast(error.message, 'error', 'Falha ao carregar'); }
-    finally { setLoading(false); }
+    } catch (error) {
+      toast(error.message, 'error', 'Falha ao carregar');
+    } finally {
+      setLoading(false);
+    }
   }
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [isLoaded, isSignedIn]);
 
   async function action(body, successMessage = 'Operação concluída.') {
     if (!session) return null;
     setBusy(true);
     try {
-      const response = await fetch('/api/admin/manage', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify(body) });
+      const response = await fetch('/api/admin/manage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error || 'Operação não concluída.');
       toast(successMessage); await load(); return json;
-    } catch (error) { toast(error.message, 'error', 'Não foi possível concluir'); return null; }
-    finally { setBusy(false); }
+    } catch (error) {
+      toast(error.message, 'error', 'Não foi possível concluir');
+      return null;
+    } finally { setBusy(false); }
   }
+
   function askConfirm(title, message, callback) { setConfirm({ title, message, callback }); }
   async function runConfirm() { const callback = confirm?.callback; setConfirm(null); await callback?.(); }
 
   async function createUser(event) {
     event.preventDefault(); setBusy(true);
     try {
-      const response = await fetch('/api/admin/create-user', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify(newUser) });
+      const response = await fetch('/api/admin/create-user', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newUser) });
       const json = await response.json(); if (!response.ok) throw new Error(json.error || 'Não foi possível criar o usuário.');
       setNewUser({ email: '', role: 'membro' });
       setCreatedUser(json.user || null);
@@ -88,7 +100,7 @@ export default function AdminDashboard() {
     try {
       const response = await fetch('/api/admin/resend-user-invite', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user.id }),
       });
       const json = await response.json();
