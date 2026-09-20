@@ -62,6 +62,10 @@ export async function POST(request) {
     // pertence a esse endereço. Não exigimos uma segunda comparação do
     // objeto retornado, pois isso pode variar conforme a representação do SDK.
     const exactUsers = exactResult?.data || [];
+    console.info('Resolve login Clerk exact lookup:', {
+      found: exactUsers.length,
+      hasUsername: !!exactUsers[0]?.username,
+    });
     if (exactUsers[0]?.username) {
       return json({ username: exactUsers[0].username });
     }
@@ -71,6 +75,9 @@ export async function POST(request) {
       limit: 50,
     });
     const candidates = queryResult?.data || [];
+    console.info('Resolve login Clerk query lookup:', {
+      found: candidates.length,
+    });
 
     const clerkUser = candidates.find((user) =>
       user.emailAddresses?.some(
@@ -95,6 +102,12 @@ export async function POST(request) {
       return json({ error: 'Não foi possível localizar sua conta.' }, { status: 500 });
     }
 
+    console.info('Resolve login profile lookup:', {
+      found: (profiles || []).length,
+      withClerkId: (profiles || []).filter((profile) => profile?.clerk_user_id).length,
+      withUsername: (profiles || []).filter((profile) => profile?.username).length,
+    });
+
     const linkedProfiles = (profiles || [])
       .filter((profile) => profile?.clerk_user_id)
       .sort((a, b) => {
@@ -115,6 +128,21 @@ export async function POST(request) {
           error: error?.message || String(error),
         });
       }
+    }
+
+    // Compatibilidade com contas antigas: o perfil pode conter o e-mail
+    // administrativo em pending_email mesmo quando clerk_user_id ainda não foi
+    // preenchido. O password continuará sendo validado pelo próprio Clerk.
+    const legacyProfile = (profiles || [])
+      .filter((profile) => profile?.pending_email && profile?.username)
+      .find((profile) => {
+        const username = String(profile.username).trim();
+        return username && !username.startsWith('Pendente-');
+      });
+
+    if (legacyProfile?.username) {
+      console.info('Resolve login legacy profile fallback: username recovered.');
+      return json({ username: legacyProfile.username });
     }
 
     return json({ error: 'Conta não encontrada.' }, { status: 404 });
