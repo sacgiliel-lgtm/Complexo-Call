@@ -120,7 +120,7 @@ export default function Home() {
     setError('');
     setNotice('');
 
-    const identifier = email.trim();
+    const identifier = email.trim().toLowerCase();
     if (!identifier) return setError('Informe seu e-mail.');
     if (!password) return setError('Informe sua senha.');
     if (!signInLoaded || !signIn || !setActiveSignIn) return setError('A autenticação ainda está carregando. Tente novamente.');
@@ -353,7 +353,7 @@ export default function Home() {
             <div className="cpx-home-tabs"><button className={`cpx-home-tab ${mode === 'login' ? 'active' : ''}`} onClick={() => changeMode('login')}>Minha conta</button><button className={`cpx-home-tab ${mode === 'invite' ? 'active' : ''}`} onClick={() => changeMode('invite')}>Tenho um convite</button></div>
             {error && <div className="error-box" role="alert">{error}</div>}{notice && <div className="success-box">{notice}</div>}
             {mode === 'login' ? <form onSubmit={login} style={{ display: 'grid', gap: 13 }}>
-              <div className="field"><label htmlFor="email">E-mail</label><input id="email" className="input" type="email" autoComplete="email" inputMode="email" placeholder="seu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus /></div>
+              <div className="field"><label htmlFor="email">E-mail ou username</label><input id="email" className="input" type="text" autoComplete="username" inputMode="email" placeholder="seu@email.com ou seu username" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus /></div>
               <div className="field"><label htmlFor="password">Senha</label><div className="input-wrap"><input id="password" className="input" type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Digite sua senha" value={password} onChange={(e) => setPassword(e.target.value)} required /><button type="button" className="input-action" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}><Icon name={showPassword ? 'eyeOff' : 'eye'} size={16} /></button></div></div>
               <button className="primary-btn cpx-home-primary" disabled={submitting}>{submitting ? <Spinner label="Entrando..." /> : <><Icon name="shield" size={16} /> Entrar</>}</button>
               <span className="cpx-home-helper">Sua autenticação é protegida pelo Clerk.</span>
