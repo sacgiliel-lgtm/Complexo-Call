@@ -1,22 +1,15 @@
 import crypto from 'crypto';
 import { RoomServiceClient } from 'livekit-server-sdk';
 import { getSupabaseAdmin } from '../../../../lib/supabaseAdmin';
+import { requireAdminFromClerk } from '../../../../lib/clerkAuth';
+import { clerkClient } from '@clerk/nextjs/server';
 import { logDiscordEvent } from '../../../../lib/discordLogger';
 
 function hashCode(value) { return crypto.createHash('sha256').update(value).digest('hex'); }
-function getClient(request) {
-  const header = request.headers.get('authorization');
-  return header?.startsWith('Bearer ') ? header.slice(7) : null;
-}
 async function requireAdmin(request) {
-  const token = getClient(request);
-  if (!token) return { error: Response.json({ error: 'Não autenticado.' }, { status: 401 }) };
-  const admin = getSupabaseAdmin();
-  const { data: { user }, error } = await admin.auth.getUser(token);
-  if (error || !user) return { error: Response.json({ error: 'Sessão inválida.' }, { status: 401 }) };
-  const { data: profile } = await admin.from('profiles').select('role,status,username').eq('id', user.id).single();
-  if (!profile || profile.role !== 'admin' || profile.status === 'suspenso') return { error: Response.json({ error: 'Apenas administradores ativos.' }, { status: 403 }) };
-  return { admin, user, profile };
+  const actor = await requireAdminFromClerk();
+  if (!actor.ok) return { error: Response.json({ error: actor.error }, { status: actor.status || 401 }) };
+  return { admin: actor.admin, user: { id: actor.id, clerkUserId: actor.clerkUserId, email: actor.email }, profile: actor.profile, actor };
 }
 async function logActivity(admin, actor, action, target, details = '') {
   await logDiscordEvent({ action, actor, target, details });
@@ -69,8 +62,13 @@ export async function POST(request) {
 
     if (action === 'delete-user') {
       if (body.id === user.id) return Response.json({ error: 'Você não pode excluir sua própria conta.' }, { status: 400 });
-      const { data: target } = await admin.from('profiles').select('username').eq('id', body.id).maybeSingle();
-      const { error } = await admin.auth.admin.deleteUser(body.id);
+      const { data: target } = await admin.from('profiles').select('username,clerk_user_id').eq('id', body.id).maybeSingle();
+      if (!target) return Response.json({ error: 'Usuário não encontrado.' }, { status: 404 });
+      if (target.clerk_user_id) {
+        const client = await clerkClient();
+        await client.users.deleteUser(target.clerk_user_id);
+      }
+      const { error } = await admin.from('profiles').delete().eq('id', body.id);
       if (error) throw error;
       await logActivity(admin, profile, 'user_deleted', target?.username || body.id);
       return Response.json({ success: true });
@@ -182,17 +180,19 @@ export async function GET(request) {
     ]);
     if (usersError || invitesError || channelsError || settingsError || activityError) throw usersError || invitesError || channelsError || settingsError || activityError;
 
-    const { data: authUsersData, error: authUsersError } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-    if (authUsersError) throw authUsersError;
-    const authUsers = authUsersData?.users || [];
-    const authById = new Map(authUsers.map((authUser) => [authUser.id, authUser]));
+    const client = await clerkClient();
+    const clerkUsersData = await client.users.getUserList({ limit: 100 });
+    const clerkUsers = clerkUsersData?.data || [];
+    const clerkById = new Map(clerkUsers.map((clerkUser) => [clerkUser.id, clerkUser]));
     const users = (profiles || []).map((profileItem) => {
-      const authUser = authById.get(profileItem.id);
+      const clerkUser = profileItem.clerk_user_id ? clerkById.get(profileItem.clerk_user_id) : null;
+      const email = clerkUser?.emailAddresses?.[0]?.emailAddress || profileItem.pending_email || '';
+      const emailConfirmed = !!clerkUser?.emailAddresses?.find((item) => item.verification?.status === 'verified');
       return {
         ...profileItem,
-        email: authUser?.email || '',
-        email_confirmed_at: authUser?.email_confirmed_at || null,
-        email_confirmed: !!authUser?.email_confirmed_at,
+        email,
+        email_confirmed_at: emailConfirmed ? (clerkUser?.emailAddresses?.[0]?.verification?.verifiedAt || null) : null,
+        email_confirmed: emailConfirmed,
       };
     });
 
