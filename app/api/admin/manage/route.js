@@ -67,16 +67,59 @@ export async function POST(request) {
 
     if (action === 'delete-user') {
       if (body.id === user.id) return Response.json({ error: 'Você não pode excluir sua própria conta.' }, { status: 400 });
-      const { data: target } = await admin.from('profiles').select('username,clerk_user_id').eq('id', body.id).maybeSingle();
+
+      const { data: target } = await admin
+        .from('profiles')
+        .select('username,clerk_user_id,pending_email')
+        .eq('id', body.id)
+        .maybeSingle();
+
       if (!target) return Response.json({ error: 'Usuário não encontrado.' }, { status: 404 });
+
+      const client = await clerkClient();
+      let revokedInvitations = 0;
+
       if (target.clerk_user_id) {
-        const client = await clerkClient();
         await client.users.deleteUser(target.clerk_user_id);
+      } else if (target.pending_email) {
+        // Usuários ainda não ativados não possuem clerk_user_id.
+        // O convite existe separadamente no Clerk e precisa ser revogado também.
+        const invitationList = await client.invitations.getInvitationList({
+          status: 'pending',
+          query: target.pending_email,
+          limit: 500,
+        });
+
+        const pendingInvitations = (invitationList?.data || []).filter(
+          (invitation) =>
+            String(invitation.emailAddress || '').trim().toLowerCase() ===
+            String(target.pending_email || '').trim().toLowerCase()
+        );
+
+        for (const invitation of pendingInvitations) {
+          await client.invitations.revokeInvitation({
+            invitationId: invitation.id,
+          });
+          revokedInvitations += 1;
+        }
       }
+
       const { error } = await admin.from('profiles').delete().eq('id', body.id);
       if (error) throw error;
-      await logActivity(admin, profile, 'user_deleted', target?.username || body.id);
-      return Response.json({ success: true });
+
+      await logActivity(
+        admin,
+        profile,
+        'user_deleted',
+        target?.username || body.id,
+        revokedInvitations
+          ? `Convite(s) Clerk revogado(s): ${revokedInvitations}`
+          : target.clerk_user_id
+            ? 'Conta Clerk excluída'
+            : 'Usuário pendente excluído'
+      );
+
+      return Response.json({ success: true, revokedInvitations });
     }
 
     if (action === 'create-channel') {
