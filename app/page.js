@@ -238,6 +238,10 @@ export default function Home() {
           throw new Error('O convite foi aceito, mas o Clerk ainda não concluiu a criação da conta.');
         }
 
+        if (!invitationEmail) {
+          throw new Error('Não foi possível identificar o e-mail associado ao convite. Solicite um novo convite ao administrador.');
+        }
+
         await setActiveSignUp({ session: signUpAttempt.createdSessionId });
       }
 
