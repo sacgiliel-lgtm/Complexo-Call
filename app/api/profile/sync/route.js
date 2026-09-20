@@ -1,8 +1,24 @@
 import { syncClerkProfile } from '../../../../lib/clerkAuth';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET() {
   const actor = await syncClerkProfile();
-  if (!actor.ok) return Response.json({ error: actor.error }, { status: actor.status || 401 });
+  if (!actor.ok) {
+    return Response.json(
+      { error: actor.error },
+      {
+        status: actor.status || 401,
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          Pragma: 'no-cache',
+          Expires: '0',
+        },
+      }
+    );
+  }
+
   return Response.json({
     profile: {
       id: actor.id,
@@ -12,6 +28,12 @@ export async function GET() {
       status: actor.profile.status,
       presence_status: actor.profile.presence_status || 'offline',
       must_change_password: false,
+    },
+  }, {
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      Pragma: 'no-cache',
+      Expires: '0',
     },
   });
 }
