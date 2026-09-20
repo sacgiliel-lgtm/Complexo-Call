@@ -3,7 +3,6 @@ import { clerkClient } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '../../../../lib/supabaseAdmin';
 import { requireAdminFromClerk } from '../../../../lib/clerkAuth';
 import { logDiscordEvent } from '../../../../lib/discordLogger';
-import { sendInvitationEmail } from '../../../../lib/invitationEmail';
 
 function getSiteUrl(request) {
   const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();
@@ -27,12 +26,10 @@ export async function POST(request) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return Response.json({ error: 'Informe um e-mail válido.' }, { status: 400 });
 
     const client = await clerkClient();
-    const expiresInDays = 7;
     const siteUrl = getSiteUrl(request);
     const invitation = await client.invitations.createInvitation({
       emailAddress: email,
-      expiresInDays,
-      notify: false,
+      expiresInDays: 7,
       redirectUrl: `${siteUrl}/?activate=1`,
       publicMetadata: { role },
     });
@@ -55,25 +52,11 @@ export async function POST(request) {
       throw profileError;
     }
 
-    try {
-      await sendInvitationEmail({
-        to: email,
-        invitationUrl: invitation.url,
-        inviterName: requester.profile?.username || requester.email || 'Administrador',
-        expiresInDays,
-        siteUrl,
-      });
-    } catch (emailError) {
-      try { await client.invitations.revokeInvitation(invitation.id); } catch {}
-      await admin.from('profiles').delete().eq('id', pendingId);
-      throw emailError;
-    }
-
     await logDiscordEvent({
       action: 'user_created',
       actor: { ...requester.profile, id: requester.id, email: requester.email },
       target: pendingUsername,
-      details: `Cargo: ${role}; e-mail: ${email}; convite Clerk criado e e-mail CPX enviado`,
+      details: `Cargo: ${role}; e-mail: ${email}; convite Clerk enviado`,
     });
 
     return Response.json({
