@@ -205,7 +205,7 @@ export default function ServidorPage() {
     if (!cred || cred.type !== 'session') return;
     fetch('/api/presence', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + cred.value },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: presence }),
     }).catch(() => {});
   }, [cred, presence]);
@@ -224,7 +224,7 @@ export default function ServidorPage() {
     if (active?.id === channel.id && token) return;
     setConnecting(true); setActive(channel); setToken(''); setMessages([]); setRightOpen(true);
     try {
-      const headers = cred?.type === 'session' ? { Authorization: `Bearer ${cred.value}` } : {};
+      const headers = {};
       const response = await fetch(`/api/token?room=${encodeURIComponent(channel.name)}`, { headers, cache: 'no-store' });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error || 'Não foi possível entrar no canal.');
@@ -374,7 +374,7 @@ export default function ServidorPage() {
 
   async function loadMessages(channelId, silent = false) {
     if (!channelId || !cred) return;
-    const headers = cred.type === 'session' ? { Authorization: `Bearer ${cred.value}` } : {};
+    const headers = {};
     try {
       const response = await fetch(`/api/messages?channel=${encodeURIComponent(channelId)}`, { headers, cache: 'no-store' });
       const json = await response.json(); if (!response.ok) throw new Error(json.error || 'Não foi possível carregar o chat.');
@@ -444,7 +444,7 @@ export default function ServidorPage() {
     try {
       const response = await fetch('/api/profile/password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cred.value}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentPassword, newPassword })
       });
       const json = await response.json();
