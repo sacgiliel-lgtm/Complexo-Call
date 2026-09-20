@@ -20,18 +20,33 @@ export default function Home() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [forcePasswordChange, setForcePasswordChange] = useState(false);
+  const [activationMode, setActivationMode] = useState(false);
+  const [activationUsername, setActivationUsername] = useState('');
+  const [activationPassword, setActivationPassword] = useState('');
+  const [activationConfirmPassword, setActivationConfirmPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
 
   useEffect(() => {
     let mounted = true;
-    (async () => {
-      const params = new URLSearchParams(window.location.search);
-      const inviteParam = params.get('invite');
-      if (inviteParam) { setCode(inviteParam.toUpperCase()); setMode('invite'); }
-      const { data: { session } } = await supabase.auth.getSession();
+    const applySession = async (session) => {
       if (!mounted) return;
+      const params = new URLSearchParams(window.location.search);
+      const activateParam = params.get('activate') === '1';
+      if (session && activateParam) {
+        const { data: profile } = await supabase.from('profiles').select('status,must_change_password,username').eq('id', session.user.id).single();
+        if (profile?.status === 'suspenso') {
+          await supabase.auth.signOut();
+          setError('Esta conta está suspensa.');
+          setLoading(false);
+          return;
+        }
+        setActivationMode(true);
+        if (profile?.username && !profile.username.startsWith('Pendente-')) setActivationUsername(profile.username);
+        setLoading(false);
+        return;
+      }
       if (session) {
         const { data: profile } = await supabase.from('profiles').select('status,must_change_password').eq('id', session.user.id).single();
         if (profile?.status === 'suspenso') {
@@ -45,8 +60,24 @@ export default function Home() {
           router.replace('/servidor');
         }
       } else setLoading(false);
+    };
+
+    (async () => {
+      const params = new URLSearchParams(window.location.search);
+      const inviteParam = params.get('invite');
+      if (inviteParam) { setCode(inviteParam.toUpperCase()); setMode('invite'); }
+      const { data: { session } } = await supabase.auth.getSession();
+      await applySession(session);
     })();
-    return () => { mounted = false; };
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      applySession(session);
+    });
+
+    return () => {
+      mounted = false;
+      authListener?.subscription?.unsubscribe();
+    };
   }, [router]);
 
   function changeMode(next) { setMode(next); setError(''); setNotice(''); }
@@ -63,6 +94,38 @@ export default function Home() {
       return;
     }
     router.push('/servidor');
+  }
+
+  async function activateAccount(event) {
+    event.preventDefault();
+    setError('');
+    setNotice('');
+    const username = activationUsername.trim();
+    if (username.length < 2 || username.length > 32) return setError('O username deve ter entre 2 e 32 caracteres.');
+    if (activationPassword.length < 8) return setError('A senha deve ter pelo menos 8 caracteres.');
+    if (activationPassword !== activationConfirmPassword) return setError('As senhas não conferem.');
+    setSubmitting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('O convite expirou ou a sessão não foi estabelecida. Abra novamente o e-mail de ativação.');
+      const response = await fetch('/api/profile/activate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+        body: JSON.stringify({ username, password: activationPassword }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error || 'Não foi possível ativar sua conta.');
+      setActivationMode(false);
+      setActivationPassword('');
+      setActivationConfirmPassword('');
+      setActivationUsername('');
+      window.history.replaceState({}, '', '/');
+      router.replace('/servidor');
+    } catch (activationError) {
+      setError(activationError.message);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function changePassword(event) {
@@ -105,6 +168,21 @@ export default function Home() {
   }
 
   if (loading) return <main className="login-page"><Spinner label="Preparando seu acesso..." /></main>;
+
+  if (activationMode) return <main className="login-page">
+    <section className="cpx-home-auth" style={{ width: 'min(100%, 470px)', margin: 'auto' }}>
+      <div className="cpx-home-auth-inner">
+        <div className="cpx-home-auth-head"><span className="cpx-home-auth-label">Ative sua conta</span><h2>Configure seu acesso</h2><p>Escolha o username que será exibido nas chamadas e crie sua senha para acessar o Complexo Call.</p></div>
+        {error && <div className="error-box" role="alert">{error}</div>}
+        <form onSubmit={activateAccount} style={{ display: 'grid', gap: 13 }}>
+          <div className="field"><label htmlFor="activation-username">Username</label><input id="activation-username" className="input" type="text" autoComplete="nickname" maxLength={32} placeholder="Como você quer ser chamado?" value={activationUsername} onChange={(e) => setActivationUsername(e.target.value)} required autoFocus /><span className="cpx-home-helper" style={{ textAlign: 'left' }}>Este nome aparecerá para as outras pessoas nas chamadas e no chat.</span></div>
+          <div className="field"><label htmlFor="activation-password">Senha</label><div className="input-wrap"><input id="activation-password" className="input" type={showNewPassword ? 'text' : 'password'} autoComplete="new-password" placeholder="Crie uma senha segura" value={activationPassword} onChange={(e) => setActivationPassword(e.target.value)} required minLength={8} /><button type="button" className="input-action" onClick={() => setShowNewPassword((value) => !value)} aria-label={showNewPassword ? 'Ocultar senha' : 'Mostrar senha'}><Icon name={showNewPassword ? 'eyeOff' : 'eye'} size={16} /></button></div></div>
+          <div className="field"><label htmlFor="activation-confirm-password">Confirmar senha</label><input id="activation-confirm-password" className="input" type="password" autoComplete="new-password" placeholder="Digite a senha novamente" value={activationConfirmPassword} onChange={(e) => setActivationConfirmPassword(e.target.value)} required minLength={8} /></div>
+          <button className="primary-btn cpx-home-primary" disabled={submitting}>{submitting ? <Spinner label="Ativando..." /> : 'Ativar conta e continuar'}</button>
+        </form>
+      </div>
+    </section>
+  </main>;
 
   if (forcePasswordChange) return <main className="login-page">
     <section className="cpx-home-auth" style={{ width: 'min(100%, 470px)', margin: 'auto' }}>
