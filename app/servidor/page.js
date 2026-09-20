@@ -259,7 +259,7 @@ export default function ServidorPage() {
     // Para convidados, /api/channels retorna a call atualmente autorizada.
     // O backend atualiza essa autorização antes de pedir o move ao LiveKit.
     if (!targetChannel || user?.type === 'guest') {
-      const headers = cred?.type === 'session' ? { Authorization: `Bearer ${cred.value}` } : {};
+      const headers = {};
       const attempts = [0, 250, 750, 1500];
 
       for (const delay of attempts) {
@@ -429,7 +429,7 @@ export default function ServidorPage() {
   async function updateProfile(event) {
     event.preventDefault(); if (!cred || user?.type === 'guest') return;
     const name = profileName.trim();
-    const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${cred.value}` };
+    const headers = { 'Content-Type': 'application/json' };
     const response = await fetch('/api/profile', { method: 'PATCH', headers, body: JSON.stringify({ username: name }) }); const json = await response.json();
     if (!response.ok) return pushToast({ type: 'error', title: 'Perfil', message: json.error || 'Não foi possível atualizar.' });
     setUser((current) => ({ ...current, username: json.profile.username })); setProfileEditorOpen(false); pushToast({ type: 'success', title: 'Perfil atualizado', message: 'Seu nome foi alterado com sucesso.' });
