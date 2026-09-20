@@ -3,12 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon, Spinner } from '../components/ui';
-import { SignIn, useAuth, useSignUp } from '@clerk/nextjs';
+import { useAuth, useSignIn, useSignUp } from '@clerk/nextjs';
 
 
 export default function Home() {
   const router = useRouter();
-  const { isLoaded: clerkLoaded, isSignedIn, getToken, signOut } = useAuth();
+  const { isLoaded: clerkLoaded, isSignedIn, signOut } = useAuth();
+  const { signIn } = useSignIn();
   const { signUp } = useSignUp();
   const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
@@ -92,7 +93,58 @@ export default function Home() {
 
   async function login(event) {
     event.preventDefault();
-    router.push('/sign-in?redirect_url=/servidor');
+    setError('');
+    setNotice('');
+
+    const identifier = email.trim();
+    if (!identifier) return setError('Informe seu e-mail.');
+    if (!password) return setError('Informe sua senha.');
+    if (!signIn) return setError('A autenticação ainda está carregando. Tente novamente.');
+
+    setSubmitting(true);
+    try {
+      const { error: signInError } = await signIn.password({
+        identifier,
+        password,
+      });
+
+      if (signInError) {
+        console.error('Clerk sign-in error:', signInError);
+        throw new Error(signInError.message || 'E-mail ou senha incorretos.');
+      }
+
+      if (signIn.status === 'complete') {
+        const { error: finalizeError } = await signIn.finalize({
+          navigate: () => {},
+        });
+        if (finalizeError) {
+          console.error('Clerk sign-in finalize error:', finalizeError);
+          throw new Error(finalizeError.message || 'Não foi possível iniciar sua sessão.');
+        }
+
+        router.replace('/servidor');
+        return;
+      }
+
+      if (signIn.status === 'needs_new_password') {
+        setForcePasswordChange(true);
+        return;
+      }
+
+      if (signIn.status === 'needs_second_factor') {
+        throw new Error('Sua conta exige uma segunda etapa de autenticação, que ainda não está configurada nesta tela.');
+      }
+
+      if (signIn.status === 'needs_protect_check') {
+        throw new Error('É necessária uma verificação de segurança adicional. Tente novamente.');
+      }
+
+      throw new Error('Não foi possível concluir o login. Verifique seus dados e tente novamente.');
+    } catch (loginError) {
+      setError(loginError.message || 'Não foi possível entrar.');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
 
@@ -254,10 +306,12 @@ export default function Home() {
             <div className="cpx-home-auth-head"><span className="cpx-home-auth-label">Portal CPX</span><h2>Pronto para conectar?</h2><p>Entre com os dados da sua conta ou utilize o código de convite.</p></div>
             <div className="cpx-home-tabs"><button className={`cpx-home-tab ${mode === 'login' ? 'active' : ''}`} onClick={() => changeMode('login')}>Minha conta</button><button className={`cpx-home-tab ${mode === 'invite' ? 'active' : ''}`} onClick={() => changeMode('invite')}>Tenho um convite</button></div>
             {error && <div className="error-box" role="alert">{error}</div>}{notice && <div className="success-box">{notice}</div>}
-            {mode === 'login' ? <div style={{ display: 'grid', gap: 13, justifyItems: 'center' }}>
-              <SignIn fallbackRedirectUrl="/servidor" />
-              <span className="cpx-home-helper">A autenticação e a sessão são gerenciadas pelo Clerk.</span>
-            </div> : <form onSubmit={invite} style={{ display: 'grid', gap: 13 }}>
+            {mode === 'login' ? <form onSubmit={login} style={{ display: 'grid', gap: 13 }}>
+              <div className="field"><label htmlFor="email">E-mail</label><input id="email" className="input" type="email" autoComplete="email" inputMode="email" placeholder="seu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus /></div>
+              <div className="field"><label htmlFor="password">Senha</label><div className="input-wrap"><input id="password" className="input" type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Digite sua senha" value={password} onChange={(e) => setPassword(e.target.value)} required /><button type="button" className="input-action" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}><Icon name={showPassword ? 'eyeOff' : 'eye'} size={16} /></button></div></div>
+              <button className="primary-btn cpx-home-primary" disabled={submitting}>{submitting ? <Spinner label="Entrando..." /> : <><Icon name="shield" size={16} /> Entrar</>}</button>
+              <span className="cpx-home-helper">Sua autenticação é protegida pelo Clerk, mas a interface permanece no CPX.</span>
+            </form> : <form onSubmit={invite} style={{ display: 'grid', gap: 13 }}>
               <div className="field"><label htmlFor="guest-name">Seu nome</label><input id="guest-name" className="input" type="text" autoComplete="name" maxLength={32} placeholder="Digite seu nome" value={guestName} onChange={(e) => setGuestName(e.target.value)} autoFocus={mode === 'invite'} required /><span className="cpx-home-helper" style={{ textAlign: 'left' }}>Digite o nome que será exibido para as outras pessoas na call.</span></div>
               <div className="field"><label htmlFor="invite">Código de acesso</label><input id="invite" className="input" inputMode="text" autoCapitalize="characters" autoComplete="off" placeholder="CPX-XXXXXXXXXX" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} required /><span className="cpx-home-helper" style={{ textAlign: 'left' }}>Quando você abrir um link de convite, o código será preenchido automaticamente.</span></div>
               <button className="primary-btn cpx-home-primary" disabled={submitting || !guestName.trim()}>{submitting ? <Spinner label="Conferindo..." /> : <><Icon name="shield" size={16} /> Entrar com convite</>}</button>
