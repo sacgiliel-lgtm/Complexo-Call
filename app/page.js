@@ -155,7 +155,7 @@ export default function Home() {
           identifier.includes('@')
           && (clerkCode === 'form_identifier_not_found' || clerkStatus === 422)
         ) {
-          const resolveResponse = await fetch('/api/auth/resolve-login', {
+          const resolveResponse = await fetch('/api/resolve-login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email: identifier }),
