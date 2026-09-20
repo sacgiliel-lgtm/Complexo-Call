@@ -122,7 +122,7 @@ export default function Home() {
       if (!isSignedIn) throw new Error('Sua sessão expirou. Entre novamente.');
       const response = await fetch('/api/profile/password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ newPassword })
       });
       const json = await response.json();
