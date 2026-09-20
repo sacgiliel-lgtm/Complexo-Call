@@ -58,14 +58,19 @@ export async function POST(request) {
       limit: 10,
     });
 
-    let candidates = exactResult?.data || [];
-    if (!candidates.length) {
-      const queryResult = await client.users.getUserList({
-        query: email,
-        limit: 50,
-      });
-      candidates = queryResult?.data || [];
+    // O filtro emailAddress do próprio Clerk já garante que o resultado
+    // pertence a esse endereço. Não exigimos uma segunda comparação do
+    // objeto retornado, pois isso pode variar conforme a representação do SDK.
+    const exactUsers = exactResult?.data || [];
+    if (exactUsers[0]?.username) {
+      return json({ username: exactUsers[0].username });
     }
+
+    const queryResult = await client.users.getUserList({
+      query: email,
+      limit: 50,
+    });
+    const candidates = queryResult?.data || [];
 
     const clerkUser = candidates.find((user) =>
       user.emailAddresses?.some(
