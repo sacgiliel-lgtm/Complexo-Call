@@ -171,7 +171,7 @@ export default function Home() {
     const invitationStatus = params.get('__clerk_status');
 
     if (username.length < 4 || username.length > 64) return setError('O username deve ter entre 4 e 64 caracteres.');
-    if (!/^[\\p{Script=Latin}\\p{N} _-]+$/u.test(username)) return setError('Use somente letras, números, espaços, _ ou -. Caracteres especiais não são permitidos no username.');
+    if (!/^[\p{Script=Latin}\p{N} _-]+$/u.test(username)) return setError('Use somente letras, números, espaços, _ ou -. Caracteres especiais não são permitidos no username.');
     if (activationPassword.length < 8) return setError('A senha deve ter pelo menos 8 caracteres.');
     if (activationPassword !== activationConfirmPassword) return setError('As senhas não conferem.');
     setSubmitting(true);
