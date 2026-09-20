@@ -3,14 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon, Spinner } from '../components/ui';
-import { SignIn, useAuth } from '@clerk/nextjs';
-import { useSignUp } from '@clerk/nextjs/legacy';
+import { SignIn, useAuth, useSignUp } from '@clerk/nextjs';
 
 
 export default function Home() {
   const router = useRouter();
   const { isLoaded: clerkLoaded, isSignedIn, getToken, signOut } = useAuth();
-  const { isLoaded: signUpLoaded, signUp, setActive } = useSignUp();
+  const { signUp } = useSignUp();
   const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -32,7 +31,7 @@ export default function Home() {
 
   useEffect(() => {
     let mounted = true;
-    if (!clerkLoaded || !signUpLoaded) return () => { mounted = false; };
+    if (!clerkLoaded) return () => { mounted = false; };
 
     (async () => {
       const params = new URLSearchParams(window.location.search);
@@ -86,7 +85,7 @@ export default function Home() {
     })();
 
     return () => { mounted = false; };
-  }, [clerkLoaded, signUpLoaded, isSignedIn, router, signOut]);
+  }, [clerkLoaded, isSignedIn, router, signOut]);
 
 
   function changeMode(next) { setMode(next); setError(''); setNotice(''); }
@@ -111,20 +110,31 @@ export default function Home() {
 
     try {
       if (invitationTicket && !isSignedIn) {
-        if (!signUpLoaded) throw new Error('A autenticação ainda está carregando. Tente novamente em alguns segundos.');
+        if (!signUp) throw new Error('A autenticação ainda está carregando. Tente novamente em alguns segundos.');
 
-        const signUpAttempt = await signUp.create({
+        const { error: signUpError } = await signUp.create({
           strategy: 'ticket',
           ticket: invitationTicket,
           password: activationPassword,
         });
 
-        if (signUpAttempt.status !== 'complete' || !signUpAttempt.createdSessionId) {
-          console.error('Clerk invitation sign-up not complete:', signUpAttempt);
-          throw new Error('Não foi possível concluir o convite. Verifique se ele ainda é válido.');
+        if (signUpError) {
+          console.error('Clerk invitation sign-up error:', signUpError);
+          throw new Error(signUpError.message || 'Não foi possível aceitar o convite.');
         }
 
-        await setActive({ session: signUpAttempt.createdSessionId });
+        if (signUp.status !== 'complete') {
+          console.error('Clerk invitation sign-up not complete:', signUp.status, signUp.missingFields);
+          throw new Error('O convite foi aceito, mas ainda faltam dados para concluir a conta.');
+        }
+
+        const { error: finalizeError } = await signUp.finalize({
+          navigate: () => {},
+        });
+        if (finalizeError) {
+          console.error('Clerk invitation finalize error:', finalizeError);
+          throw new Error(finalizeError.message || 'Não foi possível iniciar sua sessão.');
+        }
       }
 
       if (!isSignedIn && !invitationTicket) {
