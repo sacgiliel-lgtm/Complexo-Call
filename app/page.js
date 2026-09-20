@@ -181,9 +181,10 @@ export default function Home() {
 
         if (!signUpLoaded || !signUp || !setActiveSignUp) throw new Error('A autenticação ainda está carregando. Tente novamente em alguns segundos.');
 
-        const signUpAttempt = await signUp.create({
+        let signUpAttempt = await signUp.create({
           strategy: 'ticket',
           ticket: invitationTicket,
+          username,
           password: activationPassword,
         });
 
@@ -192,9 +193,43 @@ export default function Home() {
           throw new Error(signUpAttempt.error.message || 'Não foi possível aceitar o convite.');
         }
 
+        // O Clerk pode retornar missing_requirements mesmo após criar o sign-up.
+        // Nesse caso, completamos os campos obrigatórios usando os mesmos dados
+        // coletados na nossa tela personalizada.
         if (signUpAttempt?.status !== 'complete') {
-          console.error('Clerk invitation sign-up not complete:', signUpAttempt?.status, signUpAttempt?.missingFields);
-          throw new Error('O convite foi aceito, mas ainda faltam dados para concluir a conta.');
+          const missingFields = signUpAttempt?.missingFields || [];
+          console.warn('Clerk invitation sign-up ainda incompleto:', {
+            status: signUpAttempt?.status,
+            missingFields,
+          });
+
+          const supportedMissingFields = new Set(['username', 'password']);
+          const unsupportedFields = missingFields.filter((field) => !supportedMissingFields.has(field));
+
+          if (unsupportedFields.length) {
+            throw new Error(
+              `O convite foi aceito, mas o Clerk ainda exige: ${unsupportedFields.join(', ')}. Verifique os campos obrigatórios em User & authentication.`
+            );
+          }
+
+          signUpAttempt = await signUp.update({
+            username,
+            password: activationPassword,
+          });
+
+          if (signUpAttempt?.error) {
+            console.error('Clerk invitation sign-up update error:', signUpAttempt.error);
+            throw new Error(signUpAttempt.error.message || 'Não foi possível concluir os dados da conta.');
+          }
+        }
+
+        if (signUpAttempt?.status !== 'complete') {
+          console.error('Clerk invitation sign-up final status:', {
+            status: signUpAttempt?.status,
+            missingFields: signUpAttempt?.missingFields,
+            unverifiedFields: signUpAttempt?.unverifiedFields,
+          });
+          throw new Error('O convite foi aceito, mas o Clerk ainda não concluiu a criação da conta.');
         }
 
         await setActiveSignUp({ session: signUpAttempt.createdSessionId });
