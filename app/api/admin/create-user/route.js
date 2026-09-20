@@ -46,15 +46,11 @@ export async function POST(request) {
     const admin = getSupabaseAdmin();
     const pendingId = crypto.randomUUID();
     const pendingUsername = `Pendente-${pendingId.slice(0, 8)}`;
-    const invitationExpiresAt = Date.now() + (7 * 24 * 60 * 60 * 1000);
-    const activationToken = createActivationToken(pendingId, invitationExpiresAt);
 
-    const invitation = await client.invitations.createInvitation({
-      emailAddress: email,
-      expiresInDays: 7,
-      redirectUrl: `${siteUrl}/?activate=1&activation_token=${encodeURIComponent(activationToken)}`,
-      publicMetadata: { role },
-    });
+    // Criamos primeiro o perfil pendente e colocamos sua referência nos
+    // publicMetadata do convite. O Clerk copia esse metadata para o usuário
+    // após a aceitação, permitindo que a ativação seja vinculada sem depender
+    // de parâmetros que podem desaparecer da URL.
     const { error: profileError } = await admin.from('profiles').insert({
       id: pendingId,
       username: pendingUsername,
@@ -65,9 +61,26 @@ export async function POST(request) {
       pending_email: email,
       clerk_user_id: null,
     });
-    if (profileError) {
-      try { await client.invitations.revokeInvitation(invitation.id); } catch {}
-      throw profileError;
+    if (profileError) throw profileError;
+
+    const invitationExpiresAt = Date.now() + (7 * 24 * 60 * 60 * 1000);
+    const activationToken = createActivationToken(pendingId, invitationExpiresAt);
+
+    let invitation;
+    try {
+      invitation = await client.invitations.createInvitation({
+        emailAddress: email,
+        expiresInDays: 7,
+        redirectUrl: `${siteUrl}/?activate=1&activation_token=${encodeURIComponent(activationToken)}`,
+        publicMetadata: {
+          role,
+          pendingProfileId: pendingId,
+          pendingEmail: email,
+        },
+      });
+    } catch (error) {
+      try { await admin.from('profiles').delete().eq('id', pendingId); } catch {}
+      throw error;
     }
 
     await logDiscordEvent({
