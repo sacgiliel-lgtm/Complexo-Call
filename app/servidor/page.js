@@ -1,10 +1,9 @@
 'use client';
 
-import { supabase } from '../../lib/supabaseClient';
-
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon, Avatar, Badge, EmptyState, Modal, Spinner, ToastStack } from '../../components/ui';
+import { useAuth, useUser } from '@clerk/nextjs';
 import { RoomExperience } from '../../components/RoomExperience';
 import '@livekit/components-styles';
 
@@ -17,6 +16,8 @@ function channelsEqual(current, next) {
 
 export default function ServidorPage() {
   const router = useRouter();
+  const { isLoaded: clerkLoaded, isSignedIn, getToken, signOut } = useAuth();
+  const { user: clerkUser } = useUser();
   const searchRef = useRef(null);
   const [user, setUser] = useState(null);
   const [cred, setCred] = useState(null);
@@ -90,18 +91,26 @@ export default function ServidorPage() {
     let mounted = true;
     const requestedCall = new URLSearchParams(window.location.search).get('call');
     if (requestedCall) setPendingCallName(requestedCall);
+
+    if (!clerkLoaded) return () => { mounted = false; };
+
     (async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!mounted) return;
-        if (session) {
-          const { data: profile } = await supabase.from('profiles').select('username,role,status,presence_status').eq('id', session.user.id).single();
-          if (!profile || profile.status === 'suspenso') { await supabase.auth.signOut(); router.replace('/'); return; }
-          const name = profile.username || session.user.email?.split('@')[0] || 'Membro';
-          setUser({ username: name, role: profile.role || 'membro', type: 'member', identity: session.user.id });
+        if (isSignedIn) {
+          const response = await fetch('/api/profile/sync', { cache: 'no-store' });
+          const json = await response.json();
+          if (!mounted) return;
+          if (!response.ok) {
+            await signOut();
+            router.replace('/');
+            return;
+          }
+          const profile = json.profile;
+          const name = profile?.username || clerkUser?.username || clerkUser?.primaryEmailAddress?.emailAddress?.split('@')[0] || 'Membro';
+          setUser({ username: name, role: profile?.role || 'membro', type: 'member', identity: clerkUser?.id || profile?.clerkUserId });
           setProfileName(name);
-          setPresence(profile.presence_status || 'online');
-          setCred({ type: 'session', value: session.access_token });
+          setPresence(profile?.presence_status || 'online');
+          setCred({ type: 'session', value: null });
         } else {
           const response = await fetch('/api/guest/session', { cache: 'no-store' });
           const json = await response.json();
@@ -112,17 +121,21 @@ export default function ServidorPage() {
           setPresence('online');
           setCred({ type: 'guest' });
         }
-      } catch { pushToast({ type: 'error', title: 'Sessão', message: 'Não foi possível inicializar sua sessão.' }); }
-      finally { if (mounted) setLoading(false); }
+      } catch (error) {
+        pushToast({ type: 'error', title: 'Sessão', message: error.message || 'Não foi possível inicializar sua sessão.' });
+      } finally {
+        if (mounted) setLoading(false);
+      }
     })();
     return () => { mounted = false; };
-  }, [router]);
+  }, [clerkLoaded, isSignedIn, clerkUser, router, signOut]);
+
 
   useEffect(() => {
     if (!cred) return;
     let mounted = true;
     async function loadChannels() {
-      const headers = cred.type === 'session' ? { Authorization: `Bearer ${cred.value}` } : {};
+      const headers = {};
       try {
         const response = await fetch('/api/channels', { headers, cache: 'no-store' });
         const json = await response.json();
@@ -291,7 +304,7 @@ export default function ServidorPage() {
     try {
       const response = await fetch('/api/admin/participants', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cred.value}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sourceRoom: moveSelection.sourceRoom, destinationRoom: moveTarget, identity: moveSelection.identity, name: moveSelection.name }),
       });
       const json = await response.json();
@@ -397,7 +410,7 @@ export default function ServidorPage() {
 
   async function sendMessage(event) {
     event.preventDefault(); if (!active || !messageText.trim() || !cred) return;
-    const headers = { 'Content-Type': 'application/json' }; if (cred.type === 'session') headers.Authorization = `Bearer ${cred.value}`;
+    const headers = { 'Content-Type': 'application/json' }; if (cred.type === 'session') {}
     const response = await fetch('/api/messages', { method: 'POST', headers, body: JSON.stringify({ channelId: active.id, content: messageText.trim() }) }); const json = await response.json();
     if (!response.ok) {
       pushToast({ type: 'error', title: 'Mensagem', message: json.error || 'Não foi possível enviar.' });
