@@ -1,5 +1,6 @@
 'use client';
 
+import { supabase } from '../../lib/supabaseClient';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon, Avatar, Badge, EmptyState, Modal, Spinner, ToastStack } from '../../components/ui';
@@ -181,7 +182,7 @@ export default function ServidorPage() {
 
     async function loadLiveKitPresence() {
       try {
-        const headers = cred.type === 'session' ? { Authorization: `Bearer ${cred.value}` } : {};
+        const headers = {};
         const response = await fetch('/api/channels/presence', {
           headers,
           cache: 'no-store',
@@ -336,7 +337,7 @@ export default function ServidorPage() {
     try {
       const response = await fetch('/api/call-invites', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cred.value}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ roomName: active.name }),
       });
       const json = await response.json();
@@ -410,7 +411,7 @@ export default function ServidorPage() {
 
   async function sendMessage(event) {
     event.preventDefault(); if (!active || !messageText.trim() || !cred) return;
-    const headers = { 'Content-Type': 'application/json' }; if (cred.type === 'session') {}
+    const headers = { 'Content-Type': 'application/json' };
     const response = await fetch('/api/messages', { method: 'POST', headers, body: JSON.stringify({ channelId: active.id, content: messageText.trim() }) }); const json = await response.json();
     if (!response.ok) {
       pushToast({ type: 'error', title: 'Mensagem', message: json.error || 'Não foi possível enviar.' });
@@ -420,7 +421,7 @@ export default function ServidorPage() {
     return true;
   }
   async function moderate(room, identity, action) {
-    const response = await fetch('/api/moderation', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cred.value}` }, body: JSON.stringify({ room, identity, action }) }); const json = await response.json();
+    const response = await fetch('/api/moderation', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ room, identity, action }) }); const json = await response.json();
     if (!response.ok) return pushToast({ type: 'error', title: 'Moderação', message: json.error || 'Operação não concluída.' });
     pushToast({ type: 'success', title: 'Moderação aplicada', message: action === 'disconnect' ? `${identity.replace(/^guest:/, '')} foi desconectado.` : 'Microfone silenciado.' });
   }
@@ -457,7 +458,7 @@ export default function ServidorPage() {
     }
   }
 
-  async function logout() { try { if (user?.type === 'member') await supabase.auth.signOut(); else await fetch('/api/guest/logout', { method: 'POST' }); } finally { router.replace('/'); } }
+  async function logout() { try { if (user?.type === 'member') await signOut(); else await fetch('/api/guest/logout', { method: 'POST' }); } finally { router.replace('/'); } }
   function handleRightTab(tab, open = true) { setRightTab(tab); setRightOpen(open); }
   function clearNotifications() { setNotifications([]); localStorage.removeItem(NOTIFICATION_KEY); }
   function markNotificationsRead() { setNotifications((current) => { const next = current.map((item) => ({ ...item, unread: false })); localStorage.setItem(NOTIFICATION_KEY, JSON.stringify(next)); return next; }); }
