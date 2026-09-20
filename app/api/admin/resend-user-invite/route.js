@@ -2,6 +2,23 @@ import { clerkClient } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '../../../../lib/supabaseAdmin';
 import { requireAdminFromClerk } from '../../../../lib/clerkAuth';
 import { logDiscordEvent } from '../../../../lib/discordLogger';
+import crypto from 'crypto';
+
+function getActivationSigningSecret() {
+  const secret = process.env.CLERK_SECRET_KEY?.trim();
+  if (!secret) throw new Error('CLERK_SECRET_KEY não está configurada.');
+  return secret;
+}
+
+function createActivationToken(profileId, expiresAt) {
+  const payload = `${profileId}.${expiresAt}`;
+  const signature = crypto
+    .createHmac('sha256', getActivationSigningSecret())
+    .update(payload)
+    .digest('base64url');
+  return `${profileId}.${expiresAt}.${signature}`;
+}
+
 
 function getSiteUrl(request) {
   const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();
@@ -39,11 +56,13 @@ export async function POST(request) {
     if (!email) return Response.json({ error: 'Este usuário não possui e-mail.' }, { status: 400 });
 
     const siteUrl = getSiteUrl(request);
+    const invitationExpiresAt = Date.now() + (7 * 24 * 60 * 60 * 1000);
+    const activationToken = createActivationToken(targetProfile.id, invitationExpiresAt);
     const invitation = await client.invitations.createInvitation({
       emailAddress: email,
-      expiresInDays,
+      expiresInDays: 7,
       ignoreExisting: true,
-      redirectUrl: `${siteUrl}/?activate=1`,
+      redirectUrl: `${siteUrl}/?activate=1&activation_token=${encodeURIComponent(activationToken)}`,
       publicMetadata: { role: targetProfile.role },
     });
 
