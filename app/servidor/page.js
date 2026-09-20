@@ -97,7 +97,7 @@ export default function ServidorPage() {
 
     (async () => {
       try {
-        if (isSignedIn) {
+        if (isSignedIn && clerkUser?.id) {
           const response = await fetch('/api/profile/sync', { cache: 'no-store' });
           const json = await response.json();
           if (!mounted) return;
@@ -129,7 +129,7 @@ export default function ServidorPage() {
       }
     })();
     return () => { mounted = false; };
-  }, [clerkLoaded, isSignedIn, clerkUser, router, signOut]);
+  }, [clerkLoaded, isSignedIn, clerkUser?.id, router, signOut]);
 
 
   useEffect(() => {
