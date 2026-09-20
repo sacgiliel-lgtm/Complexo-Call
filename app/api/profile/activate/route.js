@@ -11,8 +11,10 @@ export async function POST(request) {
     const username = String(body.username || '').trim();
     const password = typeof body.password === 'string' ? body.password : '';
 
-    if (username.length < 2 || username.length > 32) return Response.json({ error: 'O username deve ter entre 2 e 32 caracteres.' }, { status: 400 });
-    if (!/^[\\p{L}\\p{N} _.-]+$/u.test(username)) return Response.json({ error: 'O username contém caracteres não permitidos.' }, { status: 400 });
+    if (username.length < 4 || username.length > 64) return Response.json({ error: 'O username deve ter entre 4 e 64 caracteres.' }, { status: 400 });
+    if (!/^[\\p{Script=Latin}\\p{N} _-]+$/u.test(username)) {
+      return Response.json({ error: 'Use somente letras, números, espaços, _ ou -. Caracteres especiais não são permitidos no username.' }, { status: 400 });
+    }
     if (password && (password.length < 8 || password.length > 128)) return Response.json({ error: 'A senha deve ter entre 8 e 128 caracteres.' }, { status: 400 });
 
     const { data: duplicate } = await actor.admin.from('profiles').select('id').ilike('username', username).neq('id', actor.id).maybeSingle();
@@ -21,7 +23,18 @@ export async function POST(request) {
     const client = await clerkClient();
     const updates = { username };
     if (password) updates.password = password;
-    await client.users.updateUser(actor.clerkUserId, updates);
+    try {
+      await client.users.updateUser(actor.clerkUserId, updates);
+    } catch (error) {
+      const clerkCode = error?.errors?.[0]?.code;
+      if (clerkCode === 'form_username_invalid_character') {
+        return Response.json({ error: 'O Clerk recusou esse username por conter caracteres não permitidos.' }, { status: 422 });
+      }
+      if (clerkCode === 'form_username_invalid_length') {
+        return Response.json({ error: 'O Clerk exige que o username tenha entre 4 e 64 caracteres.' }, { status: 422 });
+      }
+      throw error;
+    }
 
     const { data: profile, error } = await actor.admin.from('profiles')
       .update({ username, pending_email: actor.email || null })
