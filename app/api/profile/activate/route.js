@@ -12,7 +12,7 @@ export async function POST(request) {
 
     if (username.length < 4 || username.length > 64) return Response.json({ error: 'O username deve ter entre 4 e 64 caracteres.' }, { status: 400 });
     if (password && (password.length < 8 || password.length > 128)) return Response.json({ error: 'A senha deve ter entre 8 e 128 caracteres.' }, { status: 400 });
-    if (invitedEmail && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(invitedEmail)) return Response.json({ error: 'O e-mail do convite é inválido.' }, { status: 400 });
+    if (invitedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(invitedEmail)) return Response.json({ error: 'O e-mail do convite é inválido.' }, { status: 400 });
 
     const identity = await getClerkIdentity();
     if (!identity) return Response.json({ error: 'Sessão inválida ou expirada.' }, { status: 401 });
