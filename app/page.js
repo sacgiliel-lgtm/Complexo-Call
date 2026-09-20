@@ -4,11 +4,13 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon, Spinner } from '../components/ui';
 import { SignIn, useAuth } from '@clerk/nextjs';
+import { useSignUp } from '@clerk/nextjs/legacy';
 
 
 export default function Home() {
   const router = useRouter();
   const { isLoaded: clerkLoaded, isSignedIn, getToken, signOut } = useAuth();
+  const { isLoaded: signUpLoaded, signUp, setActive } = useSignUp();
   const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -30,21 +32,33 @@ export default function Home() {
 
   useEffect(() => {
     let mounted = true;
-    if (!clerkLoaded) return () => { mounted = false; };
+    if (!clerkLoaded || !signUpLoaded) return () => { mounted = false; };
 
     (async () => {
       const params = new URLSearchParams(window.location.search);
       const activateParam = params.get('activate') === '1';
+      const invitationTicket = params.get('__clerk_ticket');
       const inviteParam = params.get('invite');
       if (inviteParam) { setCode(inviteParam.toUpperCase()); setMode('invite'); }
+
+      // Convites de aplicação do Clerk chegam com __clerk_ticket.
+      // Nesse ponto o usuário ainda não tem sessão; o ticket será consumido
+      // pelo signUp.create() quando ele enviar a senha escolhida.
+      if (invitationTicket && !isSignedIn) {
+        if (mounted) {
+          setActivationUsername('');
+          setActivationMode(true);
+          setLoading(false);
+        }
+        return;
+      }
 
       if (!isSignedIn) {
         setLoading(false);
         return;
       }
 
-      // O destino normal após o login é /servidor. Só sincronizamos aqui
-      // quando o usuário acabou de aceitar um convite e precisa ativar a conta.
+      // O destino normal após o login é /servidor.
       if (!activateParam) {
         router.replace('/servidor');
         return;
@@ -72,7 +86,7 @@ export default function Home() {
     })();
 
     return () => { mounted = false; };
-  }, [clerkLoaded, isSignedIn, router, signOut]);
+  }, [clerkLoaded, signUpLoaded, isSignedIn, router, signOut]);
 
 
   function changeMode(next) { setMode(next); setError(''); setNotice(''); }
@@ -88,19 +102,43 @@ export default function Home() {
     setError('');
     setNotice('');
     const username = activationUsername.trim();
+    const invitationTicket = new URLSearchParams(window.location.search).get('__clerk_ticket');
+
     if (username.length < 2 || username.length > 32) return setError('O username deve ter entre 2 e 32 caracteres.');
     if (activationPassword.length < 8) return setError('A senha deve ter pelo menos 8 caracteres.');
     if (activationPassword !== activationConfirmPassword) return setError('As senhas não conferem.');
     setSubmitting(true);
+
     try {
-      if (!isSignedIn) throw new Error('Sua sessão do Clerk não foi estabelecida. Abra novamente o convite recebido por e-mail.');
+      if (invitationTicket && !isSignedIn) {
+        if (!signUpLoaded) throw new Error('A autenticação ainda está carregando. Tente novamente em alguns segundos.');
+
+        const signUpAttempt = await signUp.create({
+          strategy: 'ticket',
+          ticket: invitationTicket,
+          password: activationPassword,
+        });
+
+        if (signUpAttempt.status !== 'complete' || !signUpAttempt.createdSessionId) {
+          console.error('Clerk invitation sign-up not complete:', signUpAttempt);
+          throw new Error('Não foi possível concluir o convite. Verifique se ele ainda é válido.');
+        }
+
+        await setActive({ session: signUpAttempt.createdSessionId });
+      }
+
+      if (!isSignedIn && !invitationTicket) {
+        throw new Error('Sua sessão do Clerk não foi estabelecida. Abra novamente o convite recebido por e-mail.');
+      }
+
       const response = await fetch('/api/profile/activate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password: activationPassword }),
+        body: JSON.stringify({ username, password: invitationTicket ? undefined : activationPassword }),
       });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error || 'Não foi possível ativar sua conta.');
+
       setActivationMode(false);
       setActivationPassword('');
       setActivationConfirmPassword('');
@@ -108,7 +146,8 @@ export default function Home() {
       window.history.replaceState({}, '', '/');
       router.replace('/servidor');
     } catch (activationError) {
-      setError(activationError.message);
+      console.error('Account activation:', activationError);
+      setError(activationError.message || 'Não foi possível ativar sua conta.');
     } finally {
       setSubmitting(false);
     }
