@@ -79,6 +79,35 @@ export async function POST(request) {
 
       invitedEmail = String(pendingProfile.pending_email).trim().toLowerCase();
 
+      // Vincula o perfil pendente ao usuário Clerk antes de chamar
+      // syncClerkProfile(). Assim evitamos que uma eventual leitura
+      // momentaneamente sem e-mail crie um segundo perfil.
+      const { data: existingLinkedProfile, error: existingLinkedProfileError } = await admin
+        .from('profiles')
+        .select('id')
+        .eq('clerk_user_id', identity.userId)
+        .neq('id', pendingProfile.id)
+        .maybeSingle();
+
+      if (existingLinkedProfileError) {
+        console.error('Activate account: linked profile lookup failed.', existingLinkedProfileError);
+        return Response.json({ error: 'Não foi possível validar o vínculo desta conta.' }, { status: 500 });
+      }
+
+      if (existingLinkedProfile) {
+        return Response.json({ error: 'Esta conta Clerk já está vinculada a outro perfil.' }, { status: 409 });
+      }
+
+      const { error: linkProfileError } = await admin
+        .from('profiles')
+        .update({ clerk_user_id: identity.userId, pending_email: invitedEmail })
+        .eq('id', pendingProfile.id);
+
+      if (linkProfileError) {
+        console.error('Activate account: failed to link pending profile.', linkProfileError);
+        return Response.json({ error: 'Não foi possível vincular sua conta ao perfil de ativação.' }, { status: 500 });
+      }
+
       const clerkUser = await client.users.getUser(identity.userId);
       const normalizedCurrent = clerkUser.emailAddresses?.find(
         (item) => String(item.emailAddress || '').trim().toLowerCase() === invitedEmail
