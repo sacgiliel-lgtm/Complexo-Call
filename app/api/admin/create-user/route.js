@@ -49,7 +49,20 @@ export async function POST(request) {
     });
 
     if (inviteError) {
-      return Response.json({ error: inviteError.message }, { status: 400 });
+      const code = inviteError.code || inviteError.name || '';
+      let message = inviteError.message || 'Não foi possível enviar o convite de ativação.';
+
+      if (/not authorized/i.test(message) || code === 'email_address_not_authorized') {
+        message = 'O Supabase não está autorizado a enviar para este e-mail. Configure um SMTP personalizado (por exemplo, Brevo) em Authentication → SMTP.';
+      } else if (/already registered|already exists|user already/i.test(message)) {
+        message = 'Este e-mail já possui uma conta no Supabase. Exclua a conta existente ou use outro e-mail.';
+      } else if (/redirect/i.test(message)) {
+        message = 'A URL de ativação não está configurada corretamente. Confira NEXT_PUBLIC_SITE_URL e as Redirect URLs do Supabase.';
+      } else if (/rate limit|too many/i.test(message)) {
+        message = 'O limite de envio de e-mails foi atingido. Aguarde e tente novamente ou configure o SMTP do Brevo.';
+      }
+
+      return Response.json({ error: message, code: code || null }, { status: 400 });
     }
 
     const invitedUser = inviteData?.user;
@@ -75,7 +88,7 @@ export async function POST(request) {
     await logDiscordEvent({
       action: 'user_created',
       actor: { ...requesterProfile, id: requester.id, email: requester.email },
-      target: username,
+      target: pendingUsername,
       details: `Cargo: ${role}; e-mail: ${email}; convite de ativação enviado`,
     });
 
