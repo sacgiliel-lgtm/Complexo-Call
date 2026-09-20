@@ -22,7 +22,7 @@ export default function AdminDashboard() {
   const [channelModal, setChannelModal] = useState(false);
   const [confirm, setConfirm] = useState(null);
   const [generatedCode, setGeneratedCode] = useState('');
-  const [generatedPassword, setGeneratedPassword] = useState('');
+  const [createdUser, setCreatedUser] = useState(null);
   const [newUser, setNewUser] = useState({ email: '', username: '', role: 'membro' });
   const [inviteForm, setInviteForm] = useState({ guestName: '', expiresMinutes: 30 });
   const [channelForm, setChannelForm] = useState({ id: '', name: '', category: 'GERAL', description: '', icon: 'voice', sort_order: 0, guest_access: false, is_waiting_room: false, is_active: true });
@@ -75,9 +75,31 @@ export default function AdminDashboard() {
     try {
       const response = await fetch('/api/admin/create-user', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify(newUser) });
       const json = await response.json(); if (!response.ok) throw new Error(json.error || 'Não foi possível criar o usuário.');
-      setNewUser({ email: '', username: '', role: 'membro' }); setGeneratedPassword(json.temporaryPassword || ''); toast(`Usuário ${json.user.username} criado.`); await load();
+      setNewUser({ email: '', username: '', role: 'membro' });
+      setCreatedUser(json.user || null);
+      toast(json.message || `Usuário ${json.user?.username || ''} criado e convite enviado.`);
+      await load();
     } catch (error) { toast(error.message, 'error', 'Novo usuário'); }
     finally { setBusy(false); }
+  }
+
+  async function resendActivation(user) {
+    setBusy(true);
+    try {
+      const response = await fetch('/api/admin/resend-user-invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ userId: user.id }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error || 'Não foi possível reenviar o e-mail.');
+      toast(json.message || 'E-mail de ativação reenviado.');
+      await load();
+    } catch (error) {
+      toast(error.message, 'error', 'Ativação');
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function generateInvite(event) {
@@ -117,7 +139,7 @@ export default function AdminDashboard() {
 
     {tab === 'dashboard' && <><div className="stat-grid"><Stat label="USUÁRIOS" value={data.stats.users ?? data.users.length} icon="users" /><Stat label="ONLINE NAS CALLS" value={data.stats.online ?? 0} icon="phone" /><Stat label="CANAIS ATIVOS" value={data.stats.channels ?? data.channels.length} icon="chat" /><Stat label="CONVITES ATIVOS" value={data.stats.activeInvites ?? 0} icon="shield" /></div><div className="admin-grid"><section className="admin-card"><div className="admin-card-head"><div><h2>Atividade recente</h2><span className="helper">Eventos administrativos e de moderação.</span></div><Badge tone="purple">Painel</Badge></div>{data.activities.length ? <div className="activity-list">{data.activities.slice(0, 12).map((item) => <div className="activity-item" key={item.id}><i className="activity-bullet" /><span><b style={{ color: '#fff' }}>{activityLabel(item)}</b><br />{item.details || 'Sem detalhes'}<br />{new Date(item.created_at).toLocaleString('pt-BR')}</span></div>)}</div> : <EmptyState icon="chat" title="Sem atividade registrada" description="As ações do painel aparecerão aqui." />}</section><section className="admin-card"><div className="admin-card-head"><div><h2>Estado do servidor</h2><span className="helper">Resumo das configurações atuais.</span></div><Badge tone={data.settings.maintenance_mode ? 'yellow' : 'green'}>{data.settings.maintenance_mode ? 'Manutenção' : 'Operacional'}</Badge></div><div className="toggle-row"><div><strong>Modo manutenção</strong><span>Bloqueia novas entradas de membros e convidados.</span></div><span className={`presence-dot ${data.settings.maintenance_mode ? 'away' : ''}`} /></div><div className="toggle-row"><div><strong>Logs Discord</strong><span>Registro de acessos e eventos.</span></div><Badge tone={data.settings.discord_logs !== false ? 'green' : 'neutral'}>{data.settings.discord_logs !== false ? 'Ativo' : 'Desligado'}</Badge></div><div className="toggle-row"><div><strong>Limite por call</strong><span>Máximo configurado para cada sala.</span></div><b>{data.settings.max_users ?? 'Ilimitado'}</b></div></section></div></>}
 
-    {tab === 'usuarios' && <section className="admin-card"><div className="admin-card-head"><div><h2>Usuários</h2><span className="helper">Contas, cargos, presença e controle de acesso.</span></div><button className="primary-btn button-sm" onClick={() => setUserModal(true)}><Icon name="plus" size={14} /> Novo usuário</button></div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Usuário</th><th>Status</th><th>Presença</th><th>Cargo</th><th>Criado</th><th>Ações</th></tr></thead><tbody>{filteredUsers.map((user) => <tr key={user.id}><td><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Avatar name={user.username} size="sm" status={user.presence_status || 'offline'} /><div><b>{user.username}</b><div className="helper">{user.id.slice(0, 8)}...</div></div></div></td><td><Badge tone={user.status === 'ativo' ? 'green' : 'red'}>{user.status}</Badge></td><td><Badge tone={user.presence_status === 'online' ? 'green' : user.presence_status === 'away' ? 'yellow' : 'neutral'}>{user.presence_status || 'offline'}</Badge></td><td><select value={user.role} disabled={busy} onChange={(e) => action({ action: 'update-user', id: user.id, role: e.target.value, status: user.status }, 'Cargo atualizado.')}><option value="membro">Membro</option><option value="admin">Admin</option></select></td><td>{new Date(user.created_at).toLocaleDateString('pt-BR')}</td><td><div style={{ display: 'flex', gap: 5 }}><button className={`button-sm ${user.status === 'ativo' ? 'danger-btn' : 'primary-btn'}`} disabled={busy} onClick={() => action({ action: 'update-user', id: user.id, role: user.role, status: user.status === 'ativo' ? 'suspenso' : 'ativo' }, user.status === 'ativo' ? 'Usuário suspenso.' : 'Usuário reativado.')}>{user.status === 'ativo' ? 'Suspender' : 'Reativar'}</button>{user.role !== 'admin' && <button className="danger-btn button-sm" disabled={busy} onClick={() => askConfirm('Excluir usuário?', `A conta ${user.username} será excluída permanentemente.`, () => action({ action: 'delete-user', id: user.id }, 'Usuário excluído.'))}>Excluir</button>}</div></td></tr>)}</tbody></table></div>{!filteredUsers.length && <div className="admin-empty">Nenhum usuário encontrado.</div>}</section>}
+    {tab === 'usuarios' && <section className="admin-card"><div className="admin-card-head"><div><h2>Usuários</h2><span className="helper">Contas, cargos, presença e controle de acesso.</span></div><button className="primary-btn button-sm" onClick={() => setUserModal(true)}><Icon name="plus" size={14} /> Novo usuário</button></div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Usuário</th><th>E-mail</th><th>Ativação</th><th>Presença</th><th>Cargo</th><th>Criado</th><th>Ações</th></tr></thead><tbody>{filteredUsers.map((user) => <tr key={user.id}><td><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Avatar name={user.username} size="sm" status={user.presence_status || 'offline'} /><div><b>{user.username}</b><div className="helper">{user.id.slice(0, 8)}...</div></div></div></td><td><span style={{ fontSize: 12 }}>{user.email || '—'}</span></td><td><Badge tone={user.email_confirmed ? 'green' : 'yellow'}>{user.email_confirmed ? 'Ativo' : 'Pendente'}</Badge></td><td><Badge tone={user.presence_status === 'online' ? 'green' : user.presence_status === 'away' ? 'yellow' : 'neutral'}>{user.presence_status || 'offline'}</Badge></td><td><select value={user.role} disabled={busy} onChange={(e) => action({ action: 'update-user', id: user.id, role: e.target.value, status: user.status }, 'Cargo atualizado.')}><option value="membro">Membro</option><option value="admin">Admin</option></select></td><td>{new Date(user.created_at).toLocaleDateString('pt-BR')}</td><td><div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>{!user.email_confirmed && <button className="secondary-btn button-sm" disabled={busy} onClick={() => resendActivation(user)}>Reenviar ativação</button>}<button className={`button-sm ${user.status === 'ativo' ? 'danger-btn' : 'primary-btn'}`} disabled={busy} onClick={() => action({ action: 'update-user', id: user.id, role: user.role, status: user.status === 'ativo' ? 'suspenso' : 'ativo' }, user.status === 'ativo' ? 'Usuário suspenso.' : 'Usuário reativado.')}>{user.status === 'ativo' ? 'Suspender' : 'Reativar'}</button>{user.role !== 'admin' && <button className="danger-btn button-sm" disabled={busy} onClick={() => askConfirm('Excluir usuário?', `A conta ${user.username} será excluída permanentemente.`, () => action({ action: 'delete-user', id: user.id }, 'Usuário excluído.'))}>Excluir</button>}</div></td></tr>)}</tbody></table></div>{!filteredUsers.length && <div className="admin-empty">Nenhum usuário encontrado.</div>}</section>}
 
     {tab === 'convites' && <section className="admin-card"><div className="admin-card-head"><div><h2>Convites</h2><span className="helper">Códigos temporários para acesso de convidados.</span></div><button className="primary-btn button-sm" onClick={() => { setGeneratedCode(''); setInviteModal(true); }}><Icon name="plus" size={14} /> Gerar convite</button></div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Final</th><th>Convidado</th><th>Call</th><th>Expira</th><th>Status</th><th>Criado</th><th>Ação</th></tr></thead><tbody>{filteredInvites.map((invite) => { const [label, tone] = inviteStatus(invite); return <tr key={invite.id}><td><b>••••{invite.code_preview}</b></td><td>{invite.guest_name || 'Convidado'}</td><td>{invite.room_name ? `# ${invite.room_name}` : '—'}</td><td>{new Date(invite.expires_at).toLocaleString('pt-BR')}</td><td><Badge tone={tone}>{label}</Badge></td><td>{new Date(invite.created_at).toLocaleString('pt-BR')}</td><td>{label === 'Ativo' && <button className="danger-btn button-sm" disabled={busy} onClick={() => action({ action: 'revoke-invite', id: invite.id }, 'Convite revogado.')}>Revogar</button>}</td></tr>; })}</tbody></table></div>{!filteredInvites.length && <div className="admin-empty">Nenhum convite encontrado.</div>}</section>}
 
@@ -135,18 +157,18 @@ export default function AdminDashboard() {
       </section>}
   </div>
 
-  <Modal open={userModal} title={generatedPassword ? 'Usuário criado' : 'Criar novo usuário'} onClose={() => { setUserModal(false); setGeneratedPassword(''); }}>
-    {generatedPassword ? <div>
-      <div className="success-box">Usuário criado. A senha abaixo é temporária e será exigida apenas no primeiro acesso.</div>
-      <div className="field" style={{ marginTop: 14 }}><label>Senha temporária</label><input className="input" readOnly value={generatedPassword} onFocus={(e) => e.target.select()} /></div>
-      <div className="helper" style={{ lineHeight: 1.5 }}>Copie esta senha e entregue ao usuário com segurança. Ela não poderá ser consultada novamente pelo painel.</div>
-      <div className="modal-actions"><button type="button" className="secondary-btn" onClick={async () => { try { await navigator.clipboard.writeText(generatedPassword); toast('Senha temporária copiada.'); } catch { toast('Não foi possível copiar a senha.', 'error'); } }}>Copiar senha</button><button type="button" className="primary-btn" onClick={() => { setUserModal(false); setGeneratedPassword(''); }}>Concluir</button></div>
+  <Modal open={userModal} title={createdUser ? 'Convite de ativação enviado' : 'Criar novo usuário'} onClose={() => { setUserModal(false); setCreatedUser(null); }}>
+    {createdUser ? <div>
+      <div className="success-box">Usuário criado com sucesso. O e-mail de ativação foi enviado para <strong>{createdUser.email}</strong>.</div>
+      <div className="field" style={{ marginTop: 14 }}><label>Usuário</label><input className="input" readOnly value={createdUser.username || ''} /></div>
+      <div className="helper" style={{ lineHeight: 1.5 }}>A pessoa deverá abrir o e-mail, confirmar o endereço e definir a própria senha. Não existe senha temporária para compartilhar.</div>
+      <div className="modal-actions"><button type="button" className="primary-btn" onClick={() => { setUserModal(false); setCreatedUser(null); }}>Concluir</button></div>
     </div> : <form onSubmit={createUser}>
       <div className="field"><label>E-mail</label><input className="input" type="email" required value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} /></div>
       <div className="field"><label>Username</label><input className="input" maxLength={32} required value={newUser.username} onChange={(e) => setNewUser({ ...newUser, username: e.target.value })} /></div>
       <div className="field"><label>Cargo</label><select className="input" value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}><option value="membro">Membro</option><option value="admin">Administrador</option></select></div>
-      <div className="helper" style={{ lineHeight: 1.5, marginTop: 4 }}>Uma senha temporária aleatória será gerada automaticamente. No primeiro acesso, o usuário deverá criar a senha definitiva.</div>
-      <div className="modal-actions"><button type="button" className="ghost-btn" onClick={() => setUserModal(false)}>Cancelar</button><button className="primary-btn" disabled={busy}>{busy ? <Spinner label="Criando..." /> : 'Criar usuário'}</button></div>
+      <div className="helper" style={{ lineHeight: 1.5, marginTop: 4 }}>Ao criar, o Complexo Call enviará automaticamente um e-mail de ativação para o endereço informado. A pessoa definirá a própria senha pelo link recebido.</div>
+      <div className="modal-actions"><button type="button" className="ghost-btn" onClick={() => setUserModal(false)}>Cancelar</button><button className="primary-btn" disabled={busy}>{busy ? <Spinner label="Enviando convite..." /> : 'Criar e enviar ativação'}</button></div>
     </form>}
   </Modal>
 
