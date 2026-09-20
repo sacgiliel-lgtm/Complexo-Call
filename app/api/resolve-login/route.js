@@ -77,19 +77,38 @@ export async function POST(request) {
       return json({ username: clerkUser.username });
     }
 
-    // Compatibilidade com perfis antigos: se o e-mail ainda estiver salvo
-    // no cadastro do Complexo Call, usamos o clerk_user_id para localizar
-    // a conta e seu username.
-    const { data: profile } = await admin
+    // Fallback pelo cadastro interno. Usamos lista em vez de maybeSingle
+    // porque convites antigos/reconvites podem ter deixado mais de um registro.
+    const { data: profiles, error: profileError } = await admin
       .from('profiles')
-      .select('clerk_user_id,pending_email')
+      .select('clerk_user_id,pending_email,username,status')
       .ilike('pending_email', email)
-      .maybeSingle();
+      .limit(50);
 
-    if (profile?.clerk_user_id) {
-      const legacyClerkUser = await client.users.getUser(profile.clerk_user_id);
-      if (legacyClerkUser?.username) {
-        return json({ username: legacyClerkUser.username });
+    if (profileError) {
+      console.error('Resolve login profile lookup:', profileError);
+      return json({ error: 'Não foi possível localizar sua conta.' }, { status: 500 });
+    }
+
+    const linkedProfiles = (profiles || [])
+      .filter((profile) => profile?.clerk_user_id)
+      .sort((a, b) => {
+        if (a.status === 'ativo' && b.status !== 'ativo') return -1;
+        if (a.status !== 'ativo' && b.status === 'ativo') return 1;
+        return 0;
+      });
+
+    for (const profile of linkedProfiles) {
+      try {
+        const linkedClerkUser = await client.users.getUser(profile.clerk_user_id);
+        if (linkedClerkUser?.username) {
+          return json({ username: linkedClerkUser.username });
+        }
+      } catch (error) {
+        console.warn('Resolve login: vínculo Clerk inválido.', {
+          clerkUserId: profile.clerk_user_id,
+          error: error?.message || String(error),
+        });
       }
     }
 
