@@ -12,9 +12,6 @@ export async function POST(request) {
     const password = typeof body.password === 'string' ? body.password : '';
 
     if (username.length < 4 || username.length > 64) return Response.json({ error: 'O username deve ter entre 4 e 64 caracteres.' }, { status: 400 });
-    if (!/^[\p{Script=Latin}\p{N} _-]+$/u.test(username)) {
-      return Response.json({ error: 'Use somente letras, números, espaços, _ ou -. Caracteres especiais não são permitidos no username.' }, { status: 400 });
-    }
     if (password && (password.length < 8 || password.length > 128)) return Response.json({ error: 'A senha deve ter entre 8 e 128 caracteres.' }, { status: 400 });
 
     const { data: duplicate } = await actor.admin.from('profiles').select('id').ilike('username', username).neq('id', actor.id).maybeSingle();
