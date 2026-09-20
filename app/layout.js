@@ -20,7 +20,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="pt-BR">
-      <body><ClerkProvider><CpxPalette />{children}</ClerkProvider></body>
+      <body><ClerkProvider dynamic><CpxPalette />{children}</ClerkProvider></body>
     </html>
   );
 }
