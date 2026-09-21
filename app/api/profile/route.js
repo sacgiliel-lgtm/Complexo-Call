@@ -19,6 +19,6 @@ export async function PATCH(request) {
   if (existing) return Response.json({ error: 'Esse nome já está em uso.' }, { status: 409 });
   const { data, error } = await actor.admin.from('profiles').update({ username }).eq('id', actor.id).select('username').single();
   if (error) return Response.json({ error: 'Não foi possível atualizar seu perfil.' }, { status: 500 });
-  await logDiscordEvent({ action: 'profile_updated', actor: { ...actor, username }, target: username });
+  await logDiscordEvent({ action: 'profile_updated', actor: { ...actor, username }, target: username, request });
   return Response.json({ profile: { username: data.username, role: actor.role } });
 }
