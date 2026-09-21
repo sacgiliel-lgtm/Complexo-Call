@@ -51,7 +51,9 @@ export async function POST(request) {
 
     const client = await clerkClient();
 
+    const emailHash = crypto.createHash('sha256').update(email).digest('hex').slice(0, 12);
     const emailExternalId = getEmailLoginExternalId(email);
+    console.info('Resolve login input fingerprint:', { emailHash, hasExternalId: !!emailExternalId });
     if (emailExternalId) {
       const externalResult = await client.users.getUserList({
         externalId: [emailExternalId],
