@@ -57,7 +57,6 @@ export async function POST(request) {
       role,
       status: 'ativo',
       presence_status: 'offline',
-      must_change_password: false,
       pending_email: email,
       clerk_user_id: null,
     });
