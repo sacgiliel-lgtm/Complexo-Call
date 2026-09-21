@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { clerkClient } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '../../../lib/supabaseAdmin';
+import { getEmailLoginExternalId } from '../../../lib/clerkAuth';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -49,6 +50,22 @@ export async function POST(request) {
     }
 
     const client = await clerkClient();
+
+    const emailExternalId = getEmailLoginExternalId(email);
+    if (emailExternalId) {
+      const externalResult = await client.users.getUserList({
+        externalId: [emailExternalId],
+        limit: 10,
+      });
+      const externalUsers = externalResult?.data || [];
+      console.info('Resolve login Clerk external-id lookup:', {
+        found: externalUsers.length,
+        hasUsername: !!externalUsers[0]?.username,
+      });
+      if (externalUsers[0]?.username) {
+        return json({ username: externalUsers[0].username });
+      }
+    }
 
     // Primeiro usamos o filtro específico de e-mail. Se a instância não
     // devolver o usuário por esse índice, repetimos com query, que pesquisa
