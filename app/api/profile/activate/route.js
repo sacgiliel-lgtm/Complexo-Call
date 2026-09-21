@@ -1,5 +1,5 @@
 import { clerkClient } from '@clerk/nextjs/server';
-import { getClerkIdentity, syncClerkProfile, getEmailLoginExternalId } from '../../../../lib/clerkAuth';
+import { getClerkIdentity, syncClerkProfile } from '../../../../lib/clerkAuth';
 import { getSupabaseAdmin } from '../../../../lib/supabaseAdmin';
 import { logDiscordEvent } from '../../../../lib/discordLogger';
 import crypto from 'crypto';
@@ -155,20 +155,6 @@ export async function POST(request) {
 
     const actor = await syncClerkProfile();
     if (!actor.ok) return Response.json({ error: actor.error }, { status: actor.status || 401 });
-
-    if (invitedEmail) {
-      const loginExternalId = getEmailLoginExternalId(invitedEmail);
-      if (loginExternalId && actor.clerkUser?.externalId !== loginExternalId) {
-        try {
-          await client.users.updateUser(actor.clerkUserId, { externalId: loginExternalId });
-        } catch (error) {
-          console.warn('Activate account: could not set email login identifier.', {
-            userId: actor.clerkUserId,
-            error: error?.message || String(error),
-          });
-        }
-      }
-    }
 
     const { data: duplicate } = await actor.admin.from('profiles').select('id').ilike('username', username).neq('id', actor.id).maybeSingle();
     if (duplicate) return Response.json({ error: 'Esse username já está em uso. Escolha outro.' }, { status: 409 });
