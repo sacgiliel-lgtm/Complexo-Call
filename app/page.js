@@ -122,59 +122,16 @@ export default function Home() {
 
     const identifierInput = email.trim();
     const identifier = identifierInput.includes('@') ? identifierInput.toLowerCase() : identifierInput;
-    if (!identifier) return setError('Informe seu e-mail.');
+    if (!identifier) return setError('Informe seu e-mail ou username.');
     if (!password) return setError('Informe sua senha.');
     if (!signInLoaded || !signIn || !setActiveSignIn) return setError('A autenticação ainda está carregando. Tente novamente.');
 
     setSubmitting(true);
     try {
-      let signInAttempt;
-      let initialSignInError = null;
-
-      try {
-        signInAttempt = await signIn.create({
-          identifier,
-          password,
-        });
-        initialSignInError = signInAttempt?.error || null;
-      } catch (error) {
-        // O Clerk pode lançar o erro 422 diretamente em vez de devolvê-lo
-        // no objeto SignIn. Guardamos a exceção para decidir se o fallback
-        // por username deve ser usado.
-        initialSignInError = error;
-      }
-
-      if (initialSignInError) {
-        const clerkCode =
-          initialSignInError?.errors?.[0]?.code
-          || initialSignInError?.code
-          || '';
-        const clerkStatus = initialSignInError?.status || initialSignInError?.statusCode;
-
-        if (
-          identifier.includes('@')
-          && (clerkCode === 'form_identifier_not_found' || clerkStatus === 422)
-        ) {
-          const resolveResponse = await fetch('/api/resolve-login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: identifier }),
-            cache: 'no-store',
-          });
-          const resolveJson = await resolveResponse.json().catch(() => ({}));
-
-          if (!resolveResponse.ok || !resolveJson.username) {
-            throw new Error(resolveJson.error || 'Não foi possível localizar sua conta pelo e-mail.');
-          }
-
-          signInAttempt = await signIn.create({
-            identifier: resolveJson.username,
-            password,
-          });
-        } else {
-          throw initialSignInError;
-        }
-      }
+      const signInAttempt = await signIn.create({
+        identifier,
+        password,
+      });
 
       if (signInAttempt?.error) {
         console.error('Clerk sign-in error:', signInAttempt.error);
@@ -198,12 +155,11 @@ export default function Home() {
 
       throw new Error('Não foi possível concluir o login. Verifique seus dados e tente novamente.');
     } catch (loginError) {
-      setError(loginError.message || 'Não foi possível entrar.');
+      setError(loginError?.errors?.[0]?.message || loginError?.message || 'Não foi possível entrar.');
     } finally {
       setSubmitting(false);
     }
   }
-
 
   async function activateAccount(event) {
     event.preventDefault();
