@@ -140,10 +140,6 @@ export default function Home() {
         router.replace('/servidor');
         return;
       }
-
-      if (signInAttempt?.status === 'needs_new_password') {
-      }
-
       if (signInAttempt?.status === 'needs_second_factor') {
         throw new Error('A autenticação em duas etapas está ativada para esta conta. Desative-a no Clerk para entrar somente com e-mail e senha.');
       }
