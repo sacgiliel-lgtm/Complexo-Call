@@ -153,22 +153,45 @@ export async function POST(request) {
     const service = livekitService();
     if (!service) return Response.json({ error: 'LiveKit não configurado.' }, { status: 500 });
 
-    if (settings?.max_users) {
-      try {
-        const destinationParticipants = await service.listParticipants(destinationRoom);
-        if ((destinationParticipants?.length || 0) >= Number(settings.max_users)) {
-          return Response.json({
-            error: 'A call de destino atingiu o limite máximo de participantes.',
-            code: 'DESTINATION_FULL',
-          }, { status: 409 });
-        }
-      } catch (countError) {
-        const status = Number(countError?.status ?? countError?.statusCode ?? 0);
-        const code = String(countError?.code ?? '').toLowerCase();
-        if (!(status === 404 || code.includes('not_found') || code.includes('not found'))) {
-          throw countError;
-        }
-      }
+    // Idempotência: se a mesma identidade já chegou ao destino (por exemplo,
+    // por duplo clique, retry do navegador ou reenvio após uma resposta perdida),
+    // a operação já foi concluída. Não tentamos mover novamente nem aplicamos
+    // limite de capacidade a uma operação que não precisa mais ser executada.
+    const destinationParticipants = await service.listParticipants(destinationRoom).catch((countError) => {
+      const status = Number(countError?.status ?? countError?.statusCode ?? 0);
+      const code = String(countError?.code ?? '').toLowerCase();
+      if (status === 404 || code.includes('not_found') || code.includes('not found')) return [];
+      throw countError;
+    });
+    const alreadyAtDestination = (destinationParticipants || []).find(
+      (participant) => participant.identity === identity,
+    );
+
+    if (alreadyAtDestination) {
+      await logDiscordEvent({
+        action: 'participant_move_idempotent',
+        actor,
+        target: alreadyAtDestination.name || identity,
+        channel: sourceRoom,
+        details: `Destino #${destinationRoom} já continha o participante; nenhuma segunda movimentação foi executada.`,
+        request,
+      });
+
+      return Response.json({
+        ok: true,
+        idempotent: true,
+        mode: 'already_at_destination',
+        participant: { identity, name: alreadyAtDestination.name || requestedName || identity },
+        sourceRoom,
+        destinationRoom,
+      });
+    }
+
+    if (settings?.max_users && (destinationParticipants?.length || 0) >= Number(settings.max_users)) {
+      return Response.json({
+        error: 'A call de destino atingiu o limite máximo de participantes.',
+        code: 'DESTINATION_FULL',
+      }, { status: 409 });
     }
 
     // A lista usada pela interface precisa representar participantes realmente
@@ -207,6 +230,25 @@ export async function POST(request) {
       }
 
       const currentGuestRoom = guestSession.current_room_name || sourceRoom;
+      if (currentGuestRoom === destinationRoom) {
+        await logDiscordEvent({
+          action: 'participant_move_idempotent',
+          actor,
+          target: identity,
+          channel: sourceRoom,
+          details: `Sessão do convidado já está vinculada a #${destinationRoom}; nenhuma segunda movimentação foi executada.`,
+          request,
+        });
+
+        return Response.json({
+          ok: true,
+          idempotent: true,
+          mode: 'already_at_destination',
+          participant: { identity, name: requestedName || identity },
+          sourceRoom,
+          destinationRoom,
+        });
+      }
       if (currentGuestRoom !== sourceRoom) {
         return Response.json({
           error: 'A sessão do convidado já está vinculada a outra call. Atualize a lista e tente novamente.',
