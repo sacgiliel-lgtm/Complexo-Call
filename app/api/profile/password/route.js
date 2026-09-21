@@ -13,10 +13,8 @@ export async function POST(request) {
     if (actor.type !== 'member') return Response.json({ error: 'Convidados não podem alterar senha.' }, { status: 403 });
 
     const body = await request.json().catch(() => ({}));
-    const currentPassword = typeof body.currentPassword === 'string' ? body.currentPassword : '';
     const newPassword = typeof body.newPassword === 'string' ? body.newPassword : '';
     if (!validPassword(newPassword)) return Response.json({ error: 'A nova senha deve ter entre 8 e 128 caracteres.' }, { status: 400 });
-    if (newPassword === currentPassword) return Response.json({ error: 'A nova senha precisa ser diferente da senha atual.' }, { status: 400 });
 
     const client = await clerkClient();
     await client.users.updateUser(actor.clerkUserId, { password: newPassword });
