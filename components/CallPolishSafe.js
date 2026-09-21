@@ -151,6 +151,15 @@ export function CallExperience({ token, serverUrl, channel, user, rightTab, righ
   useEffect(() => () => {
     if (finishTimerRef.current) window.clearTimeout(finishTimerRef.current);
     if (reconnectGraceTimerRef.current) window.clearTimeout(reconnectGraceTimerRef.current);
+    if (toolbarTimerRef.current) window.clearTimeout(toolbarTimerRef.current);
+    if (screenControlsTimerRef.current) window.clearTimeout(screenControlsTimerRef.current);
+  }, []);
+
+  useEffect(() => {
+    toolbarTimerRef.current = window.setTimeout(() => setToolbarVisible(false), 4200);
+    return () => {
+      if (toolbarTimerRef.current) window.clearTimeout(toolbarTimerRef.current);
+    };
   }, []);
 
   const roomOptions = useMemo(() => ({
