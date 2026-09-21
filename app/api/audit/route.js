@@ -25,6 +25,7 @@ export async function POST(request) {
       target: target || actor.username,
       channel,
       details,
+      request,
     });
     return Response.json({ ok: true });
   } catch (error) {
