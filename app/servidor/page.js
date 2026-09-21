@@ -18,7 +18,7 @@ function channelsEqual(current, next) {
 
 export default function ServidorPage() {
   const router = useRouter();
-  const { isLoaded: clerkLoaded, isSignedIn, signOut } = useAuth();
+  const { isLoaded: clerkLoaded, isSignedIn, signOut } = useAuth({ treatPendingAsSignedOut: false });
   const { user: clerkUser } = useUser();
   const searchRef = useRef(null);
   const [user, setUser] = useState(null);
@@ -91,11 +91,11 @@ export default function ServidorPage() {
     const requestedCall = new URLSearchParams(window.location.search).get('call');
     if (requestedCall) setPendingCallName(requestedCall);
 
-    if (!clerkLoaded) return () => { mounted = false; };
+    if (!clerkLoaded || typeof isSignedIn === 'undefined') return () => { mounted = false; };
 
     (async () => {
       try {
-        if (isSignedIn && clerkUser?.id) {
+        if (isSignedIn === true && clerkUser?.id) {
           const response = await fetch('/api/profile/sync', { cache: 'no-store' });
           const json = await response.json();
           if (!mounted) return;
@@ -110,7 +110,7 @@ export default function ServidorPage() {
           setProfileName(name);
           setPresence(profile?.presence_status || 'online');
           setCred({ type: 'session', value: null });
-        } else {
+        } else if (isSignedIn === false) {
           const response = await fetch('/api/guest/session', { cache: 'no-store' });
           const json = await response.json();
           if (!response.ok) { router.replace('/'); return; }
