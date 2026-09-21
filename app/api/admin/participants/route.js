@@ -123,7 +123,8 @@ export async function POST(request) {
     }, { status: 400 });
   }
 
-  if (identity === actor.id) {
+  const ownIdentity = actor.type === 'member' ? actor.clerkUserId : actor.id;
+  if (identity === ownIdentity) {
     return Response.json({
       error: 'Você não pode mover a própria sessão.',
     }, { status: 400 });
