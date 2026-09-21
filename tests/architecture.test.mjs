@@ -41,6 +41,15 @@ test('LiveKit move blocks self-targeting and synchronizes guest authorization be
   assert.ok(authUpdate < livekitMove, 'guest authorization must be updated before LiveKit move');
 });
 
+test('servidor separates pending Clerk auth from guest sessions', () => {
+  const source = read('app/servidor/page.js');
+
+  assert.match(source, /useAuth\(\{ treatPendingAsSignedOut: false \}\)/);
+  assert.match(source, /if \(!clerkLoaded \|\| typeof isSignedIn === 'undefined'\)/);
+  assert.match(source, /if \(isSignedIn === true && clerkUser\?\.id\)/);
+  assert.match(source, /else if \(isSignedIn === false\)/);
+});
+
 test('health endpoint exists and presence heartbeat is configured', () => {
   assert.equal(fs.existsSync(path.join(root, 'app/api/health/route.js')), true);
 
