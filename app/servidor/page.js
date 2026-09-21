@@ -18,7 +18,7 @@ function channelsEqual(current, next) {
 
 export default function ServidorPage() {
   const router = useRouter();
-  const { isLoaded: clerkLoaded, isSignedIn, getToken, signOut } = useAuth();
+  const { isLoaded: clerkLoaded, isSignedIn, signOut } = useAuth();
   const { user: clerkUser } = useUser();
   const searchRef = useRef(null);
   const [user, setUser] = useState(null);
@@ -43,7 +43,6 @@ export default function ServidorPage() {
   const [moveSelection, setMoveSelection] = useState(null);
   const [moveTarget, setMoveTarget] = useState('');
   const [profileName, setProfileName] = useState('');
-  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordBusy, setPasswordBusy] = useState(false);
@@ -57,8 +56,6 @@ export default function ServidorPage() {
   const [callInviteOpen, setCallInviteOpen] = useState(false);
   const [callInviteBusy, setCallInviteBusy] = useState(false);
   const [generatedCallInvite, setGeneratedCallInvite] = useState(null);
-  const presenceChannelsRef = useRef(new Map());
-  const desiredPresenceRef = useRef(null);
   const rightTabRef = useRef(rightTab);
   const usernameRef = useRef(user?.username);
 
@@ -547,11 +544,11 @@ export default function ServidorPage() {
       const response = await fetch('/api/profile/password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentPassword, newPassword })
+        body: JSON.stringify({ newPassword })
       });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error || 'Não foi possível alterar sua senha.');
-      setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
+      setNewPassword(''); setConfirmPassword('');
       pushToast({ type: 'success', title: 'Senha alterada', message: 'Sua senha foi alterada com sucesso.' });
     } catch (error) {
       pushToast({ type: 'error', title: 'Senha', message: error.message });
@@ -644,7 +641,6 @@ export default function ServidorPage() {
       <form onSubmit={updateProfile}><div className="field"><label>Nome exibido</label><input className="input" value={profileName} maxLength={32} onChange={(e) => setProfileName(e.target.value)} /><span className="helper">Este nome será usado na lista de participantes e no chat.</span></div><div className="modal-actions"><button type="button" className="ghost-btn" onClick={() => setProfileEditorOpen(false)}>Cancelar</button><button className="primary-btn">Salvar alterações</button></div></form>
       <div className="menu-divider" style={{ margin: '18px 0' }} />
       <form onSubmit={changeOwnPassword}>
-        <div className="field"><label>Senha atual</label><input className="input" type="password" autoComplete="current-password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required /></div>
         <div className="field"><label>Nova senha</label><input className="input" type="password" autoComplete="new-password" minLength={8} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required /><span className="helper">Use pelo menos 8 caracteres.</span></div>
         <div className="field"><label>Confirmar nova senha</label><input className="input" type="password" autoComplete="new-password" minLength={8} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required /></div>
         <div className="modal-actions"><button type="submit" className="primary-btn" disabled={passwordBusy}>{passwordBusy ? <Spinner label="Alterando..." /> : 'Alterar senha'}</button></div>
