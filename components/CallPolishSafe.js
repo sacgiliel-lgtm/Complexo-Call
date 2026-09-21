@@ -431,6 +431,15 @@ function ConnectedCall({ channel, user, rightTab, rightPanelOpen, onRightTab, on
       toolbarTimerRef.current = window.setTimeout(() => setToolbarVisible(false), 3600);
     }
   }
+  useEffect(() => {
+    if (screenFocusSid || moreOpen || reactionsOpen || !toolbarVisible) return undefined;
+    if (toolbarTimerRef.current) window.clearTimeout(toolbarTimerRef.current);
+    toolbarTimerRef.current = window.setTimeout(() => setToolbarVisible(false), 3600);
+    return () => {
+      if (toolbarTimerRef.current) window.clearTimeout(toolbarTimerRef.current);
+    };
+  }, [screenFocusSid, moreOpen, reactionsOpen, toolbarVisible]);
+
   function showScreenControls() {
     setScreenControlsVisible(true);
     if (screenControlsTimerRef.current) window.clearTimeout(screenControlsTimerRef.current);
