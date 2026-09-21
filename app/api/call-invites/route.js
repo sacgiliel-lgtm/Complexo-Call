@@ -105,7 +105,7 @@ export async function POST(request) {
       return Response.json({ error: 'Não foi possível gerar um convite único. Tente novamente.' }, { status: 503 });
     }
 
-    await logDiscordEvent({ action: 'call_invite_created', actor, target: channel.name, channel: channel.name, details: `Validade: ${expiresMinutes} min` });
+    await logDiscordEvent({ action: 'call_invite_created', actor, target: channel.name, channel: channel.name, details: `Validade: ${expiresMinutes} min`, request });
 
     const origin = new URL(request.url).origin;
     const link = `${origin}/?invite=${encodeURIComponent(created.code)}&call=${encodeURIComponent(channel.name)}`;
