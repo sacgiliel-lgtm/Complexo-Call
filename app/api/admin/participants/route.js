@@ -245,6 +245,7 @@ export async function POST(request) {
       target: displayName,
       channel: sourceRoom,
       details: `Destino: #${destinationRoom}`,
+      request,
     });
 
     return Response.json({
