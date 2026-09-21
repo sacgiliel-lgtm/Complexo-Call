@@ -63,7 +63,11 @@ export async function POST(request) {
       expiresInDays: 7,
       ignoreExisting: true,
       redirectUrl: `${siteUrl}/?activate=1&activation_token=${encodeURIComponent(activationToken)}`,
-      publicMetadata: { role: targetProfile.role },
+      publicMetadata: {
+        role: targetProfile.role,
+        pendingProfileId: targetProfile.id,
+        pendingEmail: String(email).trim().toLowerCase(),
+      },
     });
 
     await logDiscordEvent({
