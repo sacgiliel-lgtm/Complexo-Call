@@ -275,7 +275,7 @@ function ConnectedCall({ channel, user, rightTab, rightPanelOpen, onRightTab, on
   }, []);
 
   useEffect(() => {
-    toolbarTimerRef.current = window.setTimeout(() => setToolbarVisible(false), 4200);
+    toolbarTimerRef.current = window.setTimeout(() => setToolbarVisible(false), 2600);
     return () => {
       if (toolbarTimerRef.current) window.clearTimeout(toolbarTimerRef.current);
     };
@@ -431,13 +431,13 @@ function ConnectedCall({ channel, user, rightTab, rightPanelOpen, onRightTab, on
     setToolbarVisible(true);
     if (toolbarTimerRef.current) window.clearTimeout(toolbarTimerRef.current);
     if (!moreOpen && !reactionsOpen && !screenFocusSid) {
-      toolbarTimerRef.current = window.setTimeout(() => setToolbarVisible(false), 3600);
+      toolbarTimerRef.current = window.setTimeout(() => setToolbarVisible(false), 2600);
     }
   }
   useEffect(() => {
     if (screenFocusSid || moreOpen || reactionsOpen || !toolbarVisible) return undefined;
     if (toolbarTimerRef.current) window.clearTimeout(toolbarTimerRef.current);
-    toolbarTimerRef.current = window.setTimeout(() => setToolbarVisible(false), 3600);
+    toolbarTimerRef.current = window.setTimeout(() => setToolbarVisible(false), 2600);
     return () => {
       if (toolbarTimerRef.current) window.clearTimeout(toolbarTimerRef.current);
     };
