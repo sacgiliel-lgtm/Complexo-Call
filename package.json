@@ -10,7 +10,7 @@
     "sync:clerk-template": "node scripts/sync-clerk-template.mjs",
     "test": "node --test tests/*.test.mjs",
     "test:watch": "node --test --watch tests/*.test.mjs",
-    "verify": "npm test && npm run build",
+    "verify": "npm test && next build",
     "prebuild": "npm test"
   },
   "dependencies": {
