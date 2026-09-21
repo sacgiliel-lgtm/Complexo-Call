@@ -24,14 +24,14 @@ export async function POST(request) {
     const service = new RoomServiceClient(host, process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET);
     if (action === 'disconnect') {
       await service.removeParticipant(room, identity);
-      await logDiscordEvent({ action: 'participant_disconnected', actor, target: identity, channel: room, details: 'Participante removido pelo moderador.' });
+      await logDiscordEvent({ action: 'participant_disconnected', actor, target: identity, channel: room, details: 'Participante removido pelo moderador.', request });
       return Response.json({ ok: true });
     }
     const participant = await service.getParticipant(room, identity);
     const audio = participant?.tracks?.find((track) => track.source === 'MICROPHONE' || track.source === 1 || String(track.source).toLowerCase().includes('microphone'));
     if (!audio?.sid) return Response.json({ error: 'O participante não possui microfone publicado.' }, { status: 409 });
     await service.mutePublishedTrack(room, identity, audio.sid, true);
-    await logDiscordEvent({ action: 'participant_muted', actor, target: identity, channel: room, details: 'Microfone silenciado pelo moderador.' });
+    await logDiscordEvent({ action: 'participant_muted', actor, target: identity, channel: room, details: 'Microfone silenciado pelo moderador.', request });
     return Response.json({ ok: true });
   } catch (error) {
     console.error('Moderation API:', error);
