@@ -428,11 +428,8 @@ export default function ServidorPage() {
         return;
       }
 
-      const tokenResponse = await fetch(`/api/token?room=${encodeURIComponent(serverRoom)}`, {
-        cache: 'no-store',
-      });
-      const tokenJson = await tokenResponse.json();
-      if (tokenResponse.ok && tokenJson.token) setToken(tokenJson.token);
+      // Na mesma sala, não trocamos o token: alterar a prop do LiveKit aqui
+      // poderia provocar uma nova reconexão e criar um ciclo de reconexões.
     } catch (error) {
       await fetch('/api/audit', {
         method: 'POST',
