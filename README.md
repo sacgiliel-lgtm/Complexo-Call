@@ -16,6 +16,7 @@ O projeto usa **Next.js**, **Clerk**, **Supabase**, **LiveKit Cloud** e **Vercel
 - [Stack](#stack)
 - [Fluxos de autenticação](#fluxos-de-autenticação)
 - [Fluxo de entrada em uma call](#fluxo-de-entrada-em-uma-call)
+- [Reconexão automática do LiveKit](#reconexão-automática-do-livekit)
 - [Fluxo de convidado](#fluxo-de-convidado)
 - [Movimentação de participantes](#movimentação-de-participantes)
 - [Papéis e permissões](#papéis-e-permissões)
@@ -38,8 +39,12 @@ O projeto usa **Next.js**, **Clerk**, **Supabase**, **LiveKit Cloud** e **Vercel
 - [Identidade de participantes no LiveKit](#identidade-de-participantes-no-livekit)
 - [Chat e Realtime](#chat-e-realtime)
 - [Presença](#presença)
+- [Heartbeat de presença](#heartbeat-de-presença)
 - [Moderação](#moderação)
 - [Centro de Comando](#centro-de-comando)
+- [Health check](#health-check)
+- [Testes automatizados](#testes-automatizados)
+- [Limpeza de código legado](#limpeza-de-código-legado)
 - [Manutenção e troubleshooting](#manutenção-e-troubleshooting)
 - [Decisões e observações de arquitetura](#decisões-e-observações-de-arquitetura)
 - [Scripts](#scripts)
@@ -800,7 +805,7 @@ Cria o cliente Supabase com a **Service Role Key** para operações internas do 
 
 ## Banco de dados
 
-O Supabase continua sendo o banco de dados principal da aplicação.
+O Supabase continua sendo o banco de dados principal da aplicação. O Supabase Auth não é utilizado pelo fluxo ativo de membros.
 
 ### `profiles`
 
@@ -812,7 +817,7 @@ Armazena:
 - status;
 - presença;
 - último acesso;
-- controle de senha legado;
+- dados de perfil e estado de presença;
 - `clerk_user_id`;
 - `pending_email`.
 
@@ -912,7 +917,7 @@ Recursos necessários para convites gerados diretamente dentro das calls.
 
 ### 4. `20260918_cpx_passwords.sql`
 
-Estruturas relacionadas ao modelo de senha legado/migração.
+Migração histórica do modelo de senha anterior. Ela permanece no diretório para preservar o histórico, mas não faz parte do fluxo ativo do aplicativo.
 
 ### 5. `20260918_cpx_realtime.sql`
 
@@ -1250,15 +1255,15 @@ URLs de preview da Vercel podem existir para commits e branches sem substituir o
 
 ## Branch e ambiente atual
 
-A migração do Clerk está sendo desenvolvida em:
+A migração do Clerk foi promovida para a branch principal:
 
 ```text
-feature/clerk-auth-migration
+main
 ```
 
-A branch `main` não deve ser alterada por esta migração sem uma decisão explícita de promoção.
+A `main` é a branch utilizada pelo deployment de produção atual. A branch `feature/clerk-auth-migration` permanece como histórico do trabalho de migração.
 
-O objetivo é validar:
+As validações principais incluem:
 
 - login;
 - ativação;
@@ -1722,7 +1727,7 @@ Discord    = auditoria opcional
 
 O projeto atualmente usa **LiveKit Cloud**.
 
-Não é necessário manter VPS própria apenas para o LiveKit nesta arquitetura.
+O self-hosted LiveKit não faz parte da arquitetura ativa atual. Não é necessário manter VPS própria apenas para o LiveKit nesta arquitetura.
 
 ### Sem Resend
 
