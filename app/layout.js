@@ -5,6 +5,7 @@ import './cpx-identity.css';
 import './complexo-brand.css';
 import './channel-members.css';
 import CpxPalette from '../components/CpxPalette';
+import { ClerkProvider } from '@clerk/nextjs';
 
 export const metadata = {
   title: 'CPX Call',
@@ -19,7 +20,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="pt-BR">
-      <body><CpxPalette />{children}</body>
+      <body><ClerkProvider dynamic><CpxPalette />{children}</ClerkProvider></body>
     </html>
   );
 }

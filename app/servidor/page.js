@@ -1,10 +1,10 @@
 'use client';
 
 import { supabase } from '../../lib/supabaseClient';
-
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon, Avatar, Badge, EmptyState, Modal, Spinner, ToastStack } from '../../components/ui';
+import { useAuth, useUser } from '@clerk/nextjs';
 import { RoomExperience } from '../../components/RoomExperience';
 import '@livekit/components-styles';
 
@@ -17,6 +17,8 @@ function channelsEqual(current, next) {
 
 export default function ServidorPage() {
   const router = useRouter();
+  const { isLoaded: clerkLoaded, isSignedIn, getToken, signOut } = useAuth();
+  const { user: clerkUser } = useUser();
   const searchRef = useRef(null);
   const [user, setUser] = useState(null);
   const [cred, setCred] = useState(null);
@@ -90,18 +92,26 @@ export default function ServidorPage() {
     let mounted = true;
     const requestedCall = new URLSearchParams(window.location.search).get('call');
     if (requestedCall) setPendingCallName(requestedCall);
+
+    if (!clerkLoaded) return () => { mounted = false; };
+
     (async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!mounted) return;
-        if (session) {
-          const { data: profile } = await supabase.from('profiles').select('username,role,status,presence_status').eq('id', session.user.id).single();
-          if (!profile || profile.status === 'suspenso') { await supabase.auth.signOut(); router.replace('/'); return; }
-          const name = profile.username || session.user.email?.split('@')[0] || 'Membro';
-          setUser({ username: name, role: profile.role || 'membro', type: 'member', identity: session.user.id });
+        if (isSignedIn && clerkUser?.id) {
+          const response = await fetch('/api/profile/sync', { cache: 'no-store' });
+          const json = await response.json();
+          if (!mounted) return;
+          if (!response.ok) {
+            await signOut();
+            router.replace('/');
+            return;
+          }
+          const profile = json.profile;
+          const name = profile?.username || clerkUser?.username || clerkUser?.primaryEmailAddress?.emailAddress?.split('@')[0] || 'Membro';
+          setUser({ username: name, role: profile?.role || 'membro', type: 'member', identity: clerkUser?.id || profile?.clerkUserId });
           setProfileName(name);
-          setPresence(profile.presence_status || 'online');
-          setCred({ type: 'session', value: session.access_token });
+          setPresence(profile?.presence_status || 'online');
+          setCred({ type: 'session', value: null });
         } else {
           const response = await fetch('/api/guest/session', { cache: 'no-store' });
           const json = await response.json();
@@ -112,17 +122,21 @@ export default function ServidorPage() {
           setPresence('online');
           setCred({ type: 'guest' });
         }
-      } catch { pushToast({ type: 'error', title: 'Sessão', message: 'Não foi possível inicializar sua sessão.' }); }
-      finally { if (mounted) setLoading(false); }
+      } catch (error) {
+        pushToast({ type: 'error', title: 'Sessão', message: error.message || 'Não foi possível inicializar sua sessão.' });
+      } finally {
+        if (mounted) setLoading(false);
+      }
     })();
     return () => { mounted = false; };
-  }, [router]);
+  }, [clerkLoaded, isSignedIn, clerkUser?.id, router, signOut]);
+
 
   useEffect(() => {
     if (!cred) return;
     let mounted = true;
     async function loadChannels() {
-      const headers = cred.type === 'session' ? { Authorization: `Bearer ${cred.value}` } : {};
+      const headers = {};
       try {
         const response = await fetch('/api/channels', { headers, cache: 'no-store' });
         const json = await response.json();
@@ -168,7 +182,7 @@ export default function ServidorPage() {
 
     async function loadLiveKitPresence() {
       try {
-        const headers = cred.type === 'session' ? { Authorization: `Bearer ${cred.value}` } : {};
+        const headers = {};
         const response = await fetch('/api/channels/presence', {
           headers,
           cache: 'no-store',
@@ -191,7 +205,7 @@ export default function ServidorPage() {
     if (!cred || cred.type !== 'session') return;
     fetch('/api/presence', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + cred.value },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: presence }),
     }).catch(() => {});
   }, [cred, presence]);
@@ -210,7 +224,7 @@ export default function ServidorPage() {
     if (active?.id === channel.id && token) return;
     setConnecting(true); setActive(channel); setToken(''); setMessages([]); setRightOpen(true);
     try {
-      const headers = cred?.type === 'session' ? { Authorization: `Bearer ${cred.value}` } : {};
+      const headers = {};
       const response = await fetch(`/api/token?room=${encodeURIComponent(channel.name)}`, { headers, cache: 'no-store' });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error || 'Não foi possível entrar no canal.');
@@ -245,7 +259,7 @@ export default function ServidorPage() {
     // Para convidados, /api/channels retorna a call atualmente autorizada.
     // O backend atualiza essa autorização antes de pedir o move ao LiveKit.
     if (!targetChannel || user?.type === 'guest') {
-      const headers = cred?.type === 'session' ? { Authorization: `Bearer ${cred.value}` } : {};
+      const headers = {};
       const attempts = [0, 250, 750, 1500];
 
       for (const delay of attempts) {
@@ -291,7 +305,7 @@ export default function ServidorPage() {
     try {
       const response = await fetch('/api/admin/participants', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cred.value}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sourceRoom: moveSelection.sourceRoom, destinationRoom: moveTarget, identity: moveSelection.identity, name: moveSelection.name }),
       });
       const json = await response.json();
@@ -323,7 +337,7 @@ export default function ServidorPage() {
     try {
       const response = await fetch('/api/call-invites', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cred.value}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ roomName: active.name }),
       });
       const json = await response.json();
@@ -360,7 +374,7 @@ export default function ServidorPage() {
 
   async function loadMessages(channelId, silent = false) {
     if (!channelId || !cred) return;
-    const headers = cred.type === 'session' ? { Authorization: `Bearer ${cred.value}` } : {};
+    const headers = {};
     try {
       const response = await fetch(`/api/messages?channel=${encodeURIComponent(channelId)}`, { headers, cache: 'no-store' });
       const json = await response.json(); if (!response.ok) throw new Error(json.error || 'Não foi possível carregar o chat.');
@@ -397,7 +411,7 @@ export default function ServidorPage() {
 
   async function sendMessage(event) {
     event.preventDefault(); if (!active || !messageText.trim() || !cred) return;
-    const headers = { 'Content-Type': 'application/json' }; if (cred.type === 'session') headers.Authorization = `Bearer ${cred.value}`;
+    const headers = { 'Content-Type': 'application/json' };
     const response = await fetch('/api/messages', { method: 'POST', headers, body: JSON.stringify({ channelId: active.id, content: messageText.trim() }) }); const json = await response.json();
     if (!response.ok) {
       pushToast({ type: 'error', title: 'Mensagem', message: json.error || 'Não foi possível enviar.' });
@@ -407,7 +421,7 @@ export default function ServidorPage() {
     return true;
   }
   async function moderate(room, identity, action) {
-    const response = await fetch('/api/moderation', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cred.value}` }, body: JSON.stringify({ room, identity, action }) }); const json = await response.json();
+    const response = await fetch('/api/moderation', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ room, identity, action }) }); const json = await response.json();
     if (!response.ok) return pushToast({ type: 'error', title: 'Moderação', message: json.error || 'Operação não concluída.' });
     pushToast({ type: 'success', title: 'Moderação aplicada', message: action === 'disconnect' ? `${identity.replace(/^guest:/, '')} foi desconectado.` : 'Microfone silenciado.' });
   }
@@ -415,7 +429,7 @@ export default function ServidorPage() {
   async function updateProfile(event) {
     event.preventDefault(); if (!cred || user?.type === 'guest') return;
     const name = profileName.trim();
-    const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${cred.value}` };
+    const headers = { 'Content-Type': 'application/json' };
     const response = await fetch('/api/profile', { method: 'PATCH', headers, body: JSON.stringify({ username: name }) }); const json = await response.json();
     if (!response.ok) return pushToast({ type: 'error', title: 'Perfil', message: json.error || 'Não foi possível atualizar.' });
     setUser((current) => ({ ...current, username: json.profile.username })); setProfileEditorOpen(false); pushToast({ type: 'success', title: 'Perfil atualizado', message: 'Seu nome foi alterado com sucesso.' });
@@ -430,7 +444,7 @@ export default function ServidorPage() {
     try {
       const response = await fetch('/api/profile/password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cred.value}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentPassword, newPassword })
       });
       const json = await response.json();
@@ -444,7 +458,7 @@ export default function ServidorPage() {
     }
   }
 
-  async function logout() { try { if (user?.type === 'member') await supabase.auth.signOut(); else await fetch('/api/guest/logout', { method: 'POST' }); } finally { router.replace('/'); } }
+  async function logout() { try { if (user?.type === 'member') await signOut(); else await fetch('/api/guest/logout', { method: 'POST' }); } finally { router.replace('/'); } }
   function handleRightTab(tab, open = true) { setRightTab(tab); setRightOpen(open); }
   function clearNotifications() { setNotifications([]); localStorage.removeItem(NOTIFICATION_KEY); }
   function markNotificationsRead() { setNotifications((current) => { const next = current.map((item) => ({ ...item, unread: false })); localStorage.setItem(NOTIFICATION_KEY, JSON.stringify(next)); return next; }); }

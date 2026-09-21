@@ -63,7 +63,7 @@ export async function POST(request) {
     }
 
     try {
-      await service.getParticipant(roomName, actor.id);
+      await service.getParticipant(roomName, actor.clerkUserId);
     } catch (error) {
       if (error?.status === 404 || error?.code === 'not_found' || error?.code === 'NOT_FOUND') {
         return Response.json({ error: 'Você precisa estar dentro desta call para criar um convite.' }, { status: 403 });

@@ -1,14 +1,16 @@
 'use client';
 
-import { supabase } from '../lib/supabaseClient';
-
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon, Spinner } from '../components/ui';
+import { useAuth, useSignIn, useSignUp } from '@clerk/nextjs';
 
 
 export default function Home() {
   const router = useRouter();
+  const { isLoaded: clerkLoaded, isSignedIn, signOut } = useAuth();
+  const { isLoaded: signInLoaded, signIn, setActive: setActiveSignIn } = useSignIn();
+  const { isLoaded: signUpLoaded, signUp, setActive: setActiveSignUp } = useSignUp();
   const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -30,70 +32,133 @@ export default function Home() {
 
   useEffect(() => {
     let mounted = true;
-    const applySession = async (session) => {
-      if (!mounted) return;
-      const params = new URLSearchParams(window.location.search);
-      const activateParam = params.get('activate') === '1';
-      if (session && activateParam) {
-        const { data: profile } = await supabase.from('profiles').select('status,must_change_password,username').eq('id', session.user.id).single();
-        if (profile?.status === 'suspenso') {
-          await supabase.auth.signOut();
-          setError('Esta conta está suspensa.');
-          setLoading(false);
-          return;
-        }
-        setActivationMode(true);
-        if (profile?.username && !profile.username.startsWith('Pendente-')) setActivationUsername(profile.username);
-        setLoading(false);
-        return;
-      }
-      if (session) {
-        const { data: profile } = await supabase.from('profiles').select('status,must_change_password').eq('id', session.user.id).single();
-        if (profile?.status === 'suspenso') {
-          await supabase.auth.signOut();
-          setError('Esta conta está suspensa.');
-          setLoading(false);
-        } else if (profile?.must_change_password) {
-          setForcePasswordChange(true);
-          setLoading(false);
-        } else {
-          router.replace('/servidor');
-        }
-      } else setLoading(false);
-    };
+    if (!clerkLoaded) return () => { mounted = false; };
 
     (async () => {
       const params = new URLSearchParams(window.location.search);
+      const activateParam = params.get('activate') === '1';
+      const invitationTicket = params.get('__clerk_ticket');
+      const invitationStatus = params.get('__clerk_status');
       const inviteParam = params.get('invite');
       if (inviteParam) { setCode(inviteParam.toUpperCase()); setMode('invite'); }
-      const { data: { session } } = await supabase.auth.getSession();
-      await applySession(session);
+
+      // Clerk adiciona __clerk_ticket e __clerk_status aos convites.
+      // sign_up: usamos nossa própria tela para escolher username e senha.
+      // sign_in: o e-mail já possui conta Clerk; autenticamos silenciosamente
+      // com o ticket e seguimos para o servidor.
+      if (invitationTicket && !isSignedIn) {
+        if (invitationStatus === 'sign_in') {
+          try {
+            if (!signInLoaded || !signIn || !setActiveSignIn) throw new Error('A autenticação ainda está carregando.');
+            const signInAttempt = await signIn.create({
+              strategy: 'ticket',
+              ticket: invitationTicket,
+            });
+            if (signInAttempt?.error) throw new Error(signInAttempt.error.message || 'Não foi possível aceitar o convite.');
+            if (signInAttempt?.status !== 'complete') throw new Error('O convite exige uma etapa de autenticação adicional.');
+            await setActiveSignIn({ session: signInAttempt.createdSessionId });
+            window.history.replaceState({}, '', '/');
+            router.replace('/servidor');
+            return;
+          } catch (invitationError) {
+            if (mounted) setError(invitationError.message || 'Não foi possível aceitar o convite.');
+            if (mounted) setLoading(false);
+            return;
+          }
+        }
+
+        if (invitationStatus === 'sign_up' || !invitationStatus) {
+          if (mounted) {
+            setActivationUsername('');
+            setActivationMode(true);
+            setLoading(false);
+          }
+          return;
+        }
+      }
+
+      if (!isSignedIn) {
+        setLoading(false);
+        return;
+      }
+
+      // O destino normal após o login é /servidor.
+      if (!activateParam) {
+        router.replace('/servidor');
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/profile/sync', { cache: 'no-store' });
+        const json = await response.json();
+        if (!response.ok) {
+          if (response.status === 403) {
+            await signOut();
+            setError(json.error || 'Esta conta está suspensa.');
+            return;
+          }
+          throw new Error(json.error || 'Não foi possível carregar seu perfil.');
+        }
+        if (!mounted) return;
+        setActivationUsername(json.profile?.username?.startsWith('Pendente-') ? '' : (json.profile?.username || ''));
+        setActivationMode(true);
+      } catch (error) {
+        if (mounted) setError(error.message || 'Não foi possível inicializar sua conta.');
+      } finally {
+        if (mounted) setLoading(false);
+      }
     })();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      applySession(session);
-    });
+    return () => { mounted = false; };
+  }, [clerkLoaded, signInLoaded, signUpLoaded, isSignedIn, router, signOut, signIn]);
 
-    return () => {
-      mounted = false;
-      authListener?.subscription?.unsubscribe();
-    };
-  }, [router]);
 
   function changeMode(next) { setMode(next); setError(''); setNotice(''); }
 
   async function login(event) {
-    event.preventDefault(); setSubmitting(true); setError(''); setNotice('');
-    const { data, error: authError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-    if (authError || !data.user) { setError('E-mail ou senha inválidos. Confira os dados e tente novamente.'); setSubmitting(false); return; }
-    const { data: profile } = await supabase.from('profiles').select('status,must_change_password').eq('id', data.user.id).single();
-    if (!profile || profile.status === 'suspenso') { await supabase.auth.signOut(); setError('Esta conta está suspensa ou não possui um perfil ativo.'); setSubmitting(false); return; }
-    if (profile.must_change_password) {
-      setForcePasswordChange(true);
+    event.preventDefault();
+    setError('');
+    setNotice('');
+
+    const identifierInput = email.trim();
+    const identifier = identifierInput.includes('@') ? identifierInput.toLowerCase() : identifierInput;
+    if (!identifier) return setError('Informe seu e-mail ou username.');
+    if (!password) return setError('Informe sua senha.');
+    if (!signInLoaded || !signIn || !setActiveSignIn) return setError('A autenticação ainda está carregando. Tente novamente.');
+
+    setSubmitting(true);
+    try {
+      const signInAttempt = await signIn.create({
+        identifier,
+        password,
+      });
+
+      if (signInAttempt?.error) {
+        console.error('Clerk sign-in error:', signInAttempt.error);
+        throw new Error(signInAttempt.error.message || 'E-mail, username ou senha incorretos.');
+      }
+
+      if (signInAttempt?.status === 'complete') {
+        await setActiveSignIn({ session: signInAttempt.createdSessionId });
+        router.replace('/servidor');
+        return;
+      }
+
+      if (signInAttempt?.status === 'needs_new_password') {
+        setForcePasswordChange(true);
+        return;
+      }
+
+      if (signInAttempt?.status === 'needs_second_factor') {
+        throw new Error('A autenticação em duas etapas está ativada para esta conta. Desative-a no Clerk para entrar somente com e-mail e senha.');
+      }
+
+      throw new Error('Não foi possível concluir o login. Verifique seus dados e tente novamente.');
+    } catch (loginError) {
+      setError(loginError?.errors?.[0]?.message || loginError?.message || 'Não foi possível entrar.');
+    } finally {
       setSubmitting(false);
-      return;
     }
-    router.push('/servidor');
   }
 
   async function activateAccount(event) {
@@ -101,20 +166,97 @@ export default function Home() {
     setError('');
     setNotice('');
     const username = activationUsername.trim();
-    if (username.length < 2 || username.length > 32) return setError('O username deve ter entre 2 e 32 caracteres.');
+    const params = new URLSearchParams(window.location.search);
+    const invitationTicket = params.get('__clerk_ticket');
+    const invitationStatus = params.get('__clerk_status');
+    const activationToken = params.get('activation_token');
+
+    if (username.length < 4 || username.length > 64) return setError('O username deve ter entre 4 e 64 caracteres.');
     if (activationPassword.length < 8) return setError('A senha deve ter pelo menos 8 caracteres.');
     if (activationPassword !== activationConfirmPassword) return setError('As senhas não conferem.');
     setSubmitting(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('O convite expirou ou a sessão não foi estabelecida. Abra novamente o e-mail de ativação.');
+      if (invitationTicket && !isSignedIn && invitationStatus !== 'sign_in') {
+        if (!activationToken) {
+          throw new Error('Este convite não possui uma referência de ativação válida. Solicite um novo convite ao administrador.');
+        }
+        if (!signUp) throw new Error('A autenticação ainda está carregando. Tente novamente em alguns segundos.');
+
+        if (!signUpLoaded || !signUp || !setActiveSignUp) throw new Error('A autenticação ainda está carregando. Tente novamente em alguns segundos.');
+
+        let signUpAttempt = await signUp.create({
+          strategy: 'ticket',
+          ticket: invitationTicket,
+          username,
+          password: activationPassword,
+        });
+
+        if (signUpAttempt?.error) {
+          console.error('Clerk invitation sign-up error:', signUpAttempt.error);
+          throw new Error(signUpAttempt.error.message || 'Não foi possível aceitar o convite.');
+        }
+
+        // O e-mail original não é confiado no navegador. O servidor recupera
+        // o endereço diretamente do perfil pendente usando o token assinado.
+
+        // O Clerk pode retornar missing_requirements mesmo após criar o sign-up.
+        // Nesse caso, completamos os campos obrigatórios usando os mesmos dados
+        // coletados na nossa tela personalizada.
+        if (signUpAttempt?.status !== 'complete') {
+          const missingFields = signUpAttempt?.missingFields || [];
+          console.warn('Clerk invitation sign-up ainda incompleto:', {
+            status: signUpAttempt?.status,
+            missingFields,
+          });
+
+          const supportedMissingFields = new Set(['username', 'password']);
+          const unsupportedFields = missingFields.filter((field) => !supportedMissingFields.has(field));
+
+          if (unsupportedFields.length) {
+            throw new Error(
+              `O convite foi aceito, mas o Clerk ainda exige: ${unsupportedFields.join(', ')}. Verifique os campos obrigatórios em User & authentication.`
+            );
+          }
+
+          signUpAttempt = await signUp.update({
+            username,
+            password: activationPassword,
+          });
+
+          if (signUpAttempt?.error) {
+            console.error('Clerk invitation sign-up update error:', signUpAttempt.error);
+            throw new Error(signUpAttempt.error.message || 'Não foi possível concluir os dados da conta.');
+          }
+        }
+
+        if (signUpAttempt?.status !== 'complete') {
+          console.error('Clerk invitation sign-up final status:', {
+            status: signUpAttempt?.status,
+            missingFields: signUpAttempt?.missingFields,
+            unverifiedFields: signUpAttempt?.unverifiedFields,
+          });
+          throw new Error('O convite foi aceito, mas o Clerk ainda não concluiu a criação da conta.');
+        }
+
+        await setActiveSignUp({ session: signUpAttempt.createdSessionId });
+      }
+
+      if (!isSignedIn && !invitationTicket) {
+        throw new Error('Sua sessão do Clerk não foi estabelecida. Abra novamente o convite recebido por e-mail.');
+      }
+
       const response = await fetch('/api/profile/activate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
-        body: JSON.stringify({ username, password: activationPassword }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username,
+          password: invitationTicket ? undefined : activationPassword,
+          activationToken: invitationTicket ? activationToken : undefined,
+        }),
       });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error || 'Não foi possível ativar sua conta.');
+
       setActivationMode(false);
       setActivationPassword('');
       setActivationConfirmPassword('');
@@ -122,7 +264,8 @@ export default function Home() {
       window.history.replaceState({}, '', '/');
       router.replace('/servidor');
     } catch (activationError) {
-      setError(activationError.message);
+      console.error('Account activation:', activationError);
+      setError(activationError.message || 'Não foi possível ativar sua conta.');
     } finally {
       setSubmitting(false);
     }
@@ -136,11 +279,10 @@ export default function Home() {
     if (newPassword !== confirmPassword) return setError('As senhas não conferem.');
     setSubmitting(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Sua sessão expirou. Entre novamente.');
+      if (!isSignedIn) throw new Error('Sua sessão expirou. Entre novamente.');
       const response = await fetch('/api/profile/password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ newPassword })
       });
       const json = await response.json();
@@ -167,7 +309,7 @@ export default function Home() {
     finally { setSubmitting(false); }
   }
 
-  if (loading) return <main className="login-page"><Spinner label="Preparando seu acesso..." /></main>;
+  if (loading || !clerkLoaded) return <main className="login-page"><Spinner label="Preparando seu acesso..." /></main>;
 
   if (activationMode) return <main className="login-page">
     <section className="cpx-home-auth" style={{ width: 'min(100%, 470px)', margin: 'auto' }}>
@@ -178,6 +320,7 @@ export default function Home() {
           <div className="field"><label htmlFor="activation-username">Username</label><input id="activation-username" className="input" type="text" autoComplete="nickname" maxLength={32} placeholder="Como você quer ser chamado?" value={activationUsername} onChange={(e) => setActivationUsername(e.target.value)} required autoFocus /><span className="cpx-home-helper" style={{ textAlign: 'left' }}>Este nome aparecerá para as outras pessoas nas chamadas e no chat.</span></div>
           <div className="field"><label htmlFor="activation-password">Senha</label><div className="input-wrap"><input id="activation-password" className="input" type={showNewPassword ? 'text' : 'password'} autoComplete="new-password" placeholder="Crie uma senha segura" value={activationPassword} onChange={(e) => setActivationPassword(e.target.value)} required minLength={8} /><button type="button" className="input-action" onClick={() => setShowNewPassword((value) => !value)} aria-label={showNewPassword ? 'Ocultar senha' : 'Mostrar senha'}><Icon name={showNewPassword ? 'eyeOff' : 'eye'} size={16} /></button></div></div>
           <div className="field"><label htmlFor="activation-confirm-password">Confirmar senha</label><input id="activation-confirm-password" className="input" type="password" autoComplete="new-password" placeholder="Digite a senha novamente" value={activationConfirmPassword} onChange={(e) => setActivationConfirmPassword(e.target.value)} required minLength={8} /></div>
+          <div id="clerk-captcha" />
           <button className="primary-btn cpx-home-primary" disabled={submitting}>{submitting ? <Spinner label="Ativando..." /> : 'Ativar conta e continuar'}</button>
         </form>
       </div>
@@ -220,9 +363,10 @@ export default function Home() {
             <div className="cpx-home-tabs"><button className={`cpx-home-tab ${mode === 'login' ? 'active' : ''}`} onClick={() => changeMode('login')}>Minha conta</button><button className={`cpx-home-tab ${mode === 'invite' ? 'active' : ''}`} onClick={() => changeMode('invite')}>Tenho um convite</button></div>
             {error && <div className="error-box" role="alert">{error}</div>}{notice && <div className="success-box">{notice}</div>}
             {mode === 'login' ? <form onSubmit={login} style={{ display: 'grid', gap: 13 }}>
-              <div className="field"><label htmlFor="email">E-mail</label><input id="email" className="input" type="email" autoComplete="email" placeholder="voce@exemplo.com" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
-              <div className="field"><label htmlFor="password">Senha</label><div className="input-wrap"><input id="password" className="input" type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Sua senha" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} /><button type="button" className="input-action" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}><Icon name={showPassword ? 'eyeOff' : 'eye'} size={16} /></button></div></div>
-              <button className="primary-btn cpx-home-primary" disabled={submitting}>{submitting ? <Spinner label="Entrando..." /> : <><Icon name="phone" size={16} /> Acessar minha sala</>}</button><span className="cpx-home-helper">A sessão fica disponível enquanto sua conta estiver autorizada.</span>
+              <div className="field"><label htmlFor="email">E-mail ou username</label><input id="email" className="input" type="text" autoComplete="username" inputMode="email" placeholder="seu@email.com ou seu username" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus /></div>
+              <div className="field"><label htmlFor="password">Senha</label><div className="input-wrap"><input id="password" className="input" type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Digite sua senha" value={password} onChange={(e) => setPassword(e.target.value)} required /><button type="button" className="input-action" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}><Icon name={showPassword ? 'eyeOff' : 'eye'} size={16} /></button></div></div>
+              <button className="primary-btn cpx-home-primary" disabled={submitting}>{submitting ? <Spinner label="Entrando..." /> : <><Icon name="shield" size={16} /> Entrar</>}</button>
+              <span className="cpx-home-helper">Sua autenticação é protegida pelo Clerk.</span>
             </form> : <form onSubmit={invite} style={{ display: 'grid', gap: 13 }}>
               <div className="field"><label htmlFor="guest-name">Seu nome</label><input id="guest-name" className="input" type="text" autoComplete="name" maxLength={32} placeholder="Digite seu nome" value={guestName} onChange={(e) => setGuestName(e.target.value)} autoFocus={mode === 'invite'} required /><span className="cpx-home-helper" style={{ textAlign: 'left' }}>Digite o nome que será exibido para as outras pessoas na call.</span></div>
               <div className="field"><label htmlFor="invite">Código de acesso</label><input id="invite" className="input" inputMode="text" autoCapitalize="characters" autoComplete="off" placeholder="CPX-XXXXXXXXXX" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} required /><span className="cpx-home-helper" style={{ textAlign: 'left' }}>Quando você abrir um link de convite, o código será preenchido automaticamente.</span></div>

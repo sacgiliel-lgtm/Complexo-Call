@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "sync:clerk-template": "node scripts/sync-clerk-template.mjs"
   },
   "dependencies": {
     "@livekit/components-react": "^2.6.1",
@@ -14,8 +15,9 @@
     "@supabase/supabase-js": "^2.43.4",
     "livekit-client": "^2.22.3",
     "livekit-server-sdk": "^2.1.2",
-    "next": "14.2.3",
+    "next": "14.2.35",
     "react": "^18",
-    "react-dom": "^18"
+    "react-dom": "^18",
+    "@clerk/nextjs": "6.39.7"
   }
 }

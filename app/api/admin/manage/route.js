@@ -1,22 +1,15 @@
 import crypto from 'crypto';
 import { RoomServiceClient } from 'livekit-server-sdk';
 import { getSupabaseAdmin } from '../../../../lib/supabaseAdmin';
+import { requireAdminFromClerk } from '../../../../lib/clerkAuth';
+import { clerkClient } from '@clerk/nextjs/server';
 import { logDiscordEvent } from '../../../../lib/discordLogger';
 
 function hashCode(value) { return crypto.createHash('sha256').update(value).digest('hex'); }
-function getClient(request) {
-  const header = request.headers.get('authorization');
-  return header?.startsWith('Bearer ') ? header.slice(7) : null;
-}
 async function requireAdmin(request) {
-  const token = getClient(request);
-  if (!token) return { error: Response.json({ error: 'Não autenticado.' }, { status: 401 }) };
-  const admin = getSupabaseAdmin();
-  const { data: { user }, error } = await admin.auth.getUser(token);
-  if (error || !user) return { error: Response.json({ error: 'Sessão inválida.' }, { status: 401 }) };
-  const { data: profile } = await admin.from('profiles').select('role,status,username').eq('id', user.id).single();
-  if (!profile || profile.role !== 'admin' || profile.status === 'suspenso') return { error: Response.json({ error: 'Apenas administradores ativos.' }, { status: 403 }) };
-  return { admin, user, profile };
+  const actor = await requireAdminFromClerk();
+  if (!actor.ok) return { error: Response.json({ error: actor.error }, { status: actor.status || 401 }) };
+  return { admin: actor.admin, user: { id: actor.id, clerkUserId: actor.clerkUserId, email: actor.email }, profile: actor.profile, actor };
 }
 async function logActivity(admin, actor, action, target, details = '') {
   await logDiscordEvent({ action, actor, target, details });
@@ -61,19 +54,70 @@ export async function POST(request) {
       if (body.id === user.id && body.status === 'suspenso') return Response.json({ error: 'Você não pode suspender sua própria conta.' }, { status: 400 });
       if (body.id === user.id && body.role !== 'admin') return Response.json({ error: 'Você não pode retirar seu próprio cargo de administrador.' }, { status: 400 });
       const { data: target } = await admin.from('profiles').select('username').eq('id', body.id).maybeSingle();
+      const { data: targetIdentity } = await admin.from('profiles').select('username,clerk_user_id').eq('id', body.id).maybeSingle();
       const { error } = await admin.from('profiles').update({ role: body.role, status: body.status }).eq('id', body.id);
       if (error) throw error;
+      if (targetIdentity?.clerk_user_id) {
+        const client = await clerkClient();
+        await client.users.updateUserMetadata(targetIdentity.clerk_user_id, { publicMetadata: { role: body.role } });
+      }
       await logActivity(admin, profile, 'user_updated', target?.username || body.id, `cargo=${body.role}; status=${body.status}`);
       return Response.json({ success: true });
     }
 
     if (action === 'delete-user') {
       if (body.id === user.id) return Response.json({ error: 'Você não pode excluir sua própria conta.' }, { status: 400 });
-      const { data: target } = await admin.from('profiles').select('username').eq('id', body.id).maybeSingle();
-      const { error } = await admin.auth.admin.deleteUser(body.id);
+
+      const { data: target } = await admin
+        .from('profiles')
+        .select('username,clerk_user_id,pending_email')
+        .eq('id', body.id)
+        .maybeSingle();
+
+      if (!target) return Response.json({ error: 'Usuário não encontrado.' }, { status: 404 });
+
+      const client = await clerkClient();
+      let revokedInvitations = 0;
+
+      if (target.clerk_user_id) {
+        await client.users.deleteUser(target.clerk_user_id);
+      } else if (target.pending_email) {
+        // Usuários ainda não ativados não possuem clerk_user_id.
+        // O convite existe separadamente no Clerk e precisa ser revogado também.
+        const invitationList = await client.invitations.getInvitationList({
+          status: 'pending',
+          query: target.pending_email,
+          limit: 500,
+        });
+
+        const pendingInvitations = (invitationList?.data || []).filter(
+          (invitation) =>
+            String(invitation.emailAddress || '').trim().toLowerCase() ===
+            String(target.pending_email || '').trim().toLowerCase()
+        );
+
+        for (const invitation of pendingInvitations) {
+          await client.invitations.revokeInvitation(invitation.id);
+          revokedInvitations += 1;
+        }
+      }
+
+      const { error } = await admin.from('profiles').delete().eq('id', body.id);
       if (error) throw error;
-      await logActivity(admin, profile, 'user_deleted', target?.username || body.id);
-      return Response.json({ success: true });
+
+      await logActivity(
+        admin,
+        profile,
+        'user_deleted',
+        target?.username || body.id,
+        revokedInvitations
+          ? `Convite(s) Clerk revogado(s): ${revokedInvitations}`
+          : target.clerk_user_id
+            ? 'Conta Clerk excluída'
+            : 'Usuário pendente excluído'
+      );
+
+      return Response.json({ success: true, revokedInvitations });
     }
 
     if (action === 'create-channel') {
@@ -174,7 +218,7 @@ export async function GET(request) {
     if (auth.error) return auth.error;
     const { admin } = auth;
     const [{ data: profiles, error: usersError }, { data: invites, error: invitesError }, { data: channels, error: channelsError }, { data: settings, error: settingsError }, { data: activities, error: activityError }] = await Promise.all([
-      admin.from('profiles').select('id,username,role,status,presence_status,last_seen_at,created_at').order('created_at', { ascending: false }),
+      admin.from('profiles').select('id,username,role,status,presence_status,last_seen_at,created_at,clerk_user_id,pending_email').order('created_at', { ascending: false }),
       admin.from('invites').select('id,code_preview,guest_name,type,room_name,expires_at,used_at,revoked_at,created_at').order('created_at', { ascending: false }).limit(100),
       admin.from('channels').select('*').order('sort_order', { ascending: true }),
       admin.from('server_settings').select('*').eq('id', 1).maybeSingle(),
@@ -182,17 +226,19 @@ export async function GET(request) {
     ]);
     if (usersError || invitesError || channelsError || settingsError || activityError) throw usersError || invitesError || channelsError || settingsError || activityError;
 
-    const { data: authUsersData, error: authUsersError } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-    if (authUsersError) throw authUsersError;
-    const authUsers = authUsersData?.users || [];
-    const authById = new Map(authUsers.map((authUser) => [authUser.id, authUser]));
+    const client = await clerkClient();
+    const clerkUsersData = await client.users.getUserList({ limit: 100 });
+    const clerkUsers = clerkUsersData?.data || [];
+    const clerkById = new Map(clerkUsers.map((clerkUser) => [clerkUser.id, clerkUser]));
     const users = (profiles || []).map((profileItem) => {
-      const authUser = authById.get(profileItem.id);
+      const clerkUser = profileItem.clerk_user_id ? clerkById.get(profileItem.clerk_user_id) : null;
+      const email = clerkUser?.emailAddresses?.[0]?.emailAddress || profileItem.pending_email || '';
+      const emailConfirmed = !!clerkUser?.emailAddresses?.find((item) => item.verification?.status === 'verified');
       return {
         ...profileItem,
-        email: authUser?.email || '',
-        email_confirmed_at: authUser?.email_confirmed_at || null,
-        email_confirmed: !!authUser?.email_confirmed_at,
+        email,
+        email_confirmed_at: emailConfirmed ? (clerkUser?.emailAddresses?.[0]?.verification?.verifiedAt || null) : null,
+        email_confirmed: emailConfirmed,
       };
     });
 

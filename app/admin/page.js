@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
+import { useAuth } from '@clerk/nextjs';
 import { Avatar, Badge, EmptyState, Icon, Modal, Spinner, ToastStack } from '../../components/ui';
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 const tabs = [['dashboard', 'Visão geral'], ['usuarios', 'Usuários'], ['convites', 'Convites'], ['canais', 'Canais'], ['config', 'Configuração']];
 
 export default function AdminDashboard() {
   const router = useRouter();
+  const { isLoaded, isSignedIn } = useAuth();
   const [session, setSession] = useState(null);
   const [tab, setTab] = useState('dashboard');
   const [data, setData] = useState({ users: [], invites: [], channels: [], activities: [], settings: {}, stats: {} });
@@ -35,45 +35,57 @@ export default function AdminDashboard() {
   }
 
   async function load() {
-    const { data: { session: current } } = await supabase.auth.getSession();
-    if (!current) { router.replace('/'); return; }
-    const { data: profile } = await supabase.from('profiles').select('role,status').eq('id', current.user.id).single();
-    if (!profile || profile.role !== 'admin' || profile.status === 'suspenso') { router.replace('/servidor'); return; }
-    setSession(current);
+    if (!isLoaded) return;
+    if (!isSignedIn) { router.replace('/'); return; }
     try {
-      const response = await fetch('/api/admin/manage', { headers: { Authorization: `Bearer ${current.access_token}` }, cache: 'no-store' });
+      const response = await fetch('/api/admin/manage', { cache: 'no-store' });
       const json = await response.json();
-      if (!response.ok) throw new Error(json.error || 'Erro ao carregar o painel.');
-      setData(json); setSettingsForm({
+      if (!response.ok) {
+        if (response.status === 403) { router.replace('/servidor'); return; }
+        throw new Error(json.error || 'Erro ao carregar o painel.');
+      }
+      setSession({ active: true });
+      setData(json);
+      setSettingsForm({
         maintenance_mode: !!json.settings?.maintenance_mode,
         discord_logs: json.settings?.discord_logs !== false,
         max_users: json.settings?.max_users ?? 'ilimitado',
         call_invite_enabled: json.settings?.call_invite_enabled !== false,
         call_invite_expires_minutes: Number(json.settings?.call_invite_expires_minutes) || 60,
       });
-    } catch (error) { toast(error.message, 'error', 'Falha ao carregar'); }
-    finally { setLoading(false); }
+    } catch (error) {
+      toast(error.message, 'error', 'Falha ao carregar');
+    } finally {
+      setLoading(false);
+    }
   }
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [isLoaded, isSignedIn]);
 
   async function action(body, successMessage = 'Operação concluída.') {
     if (!session) return null;
     setBusy(true);
     try {
-      const response = await fetch('/api/admin/manage', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify(body) });
+      const response = await fetch('/api/admin/manage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error || 'Operação não concluída.');
       toast(successMessage); await load(); return json;
-    } catch (error) { toast(error.message, 'error', 'Não foi possível concluir'); return null; }
-    finally { setBusy(false); }
+    } catch (error) {
+      toast(error.message, 'error', 'Não foi possível concluir');
+      return null;
+    } finally { setBusy(false); }
   }
+
   function askConfirm(title, message, callback) { setConfirm({ title, message, callback }); }
   async function runConfirm() { const callback = confirm?.callback; setConfirm(null); await callback?.(); }
 
   async function createUser(event) {
     event.preventDefault(); setBusy(true);
     try {
-      const response = await fetch('/api/admin/create-user', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify(newUser) });
+      const response = await fetch('/api/admin/create-user', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newUser) });
       const json = await response.json(); if (!response.ok) throw new Error(json.error || 'Não foi possível criar o usuário.');
       setNewUser({ email: '', role: 'membro' });
       setCreatedUser(json.user || null);
@@ -88,7 +100,7 @@ export default function AdminDashboard() {
     try {
       const response = await fetch('/api/admin/resend-user-invite', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user.id }),
       });
       const json = await response.json();
@@ -139,7 +151,7 @@ export default function AdminDashboard() {
 
     {tab === 'dashboard' && <><div className="stat-grid"><Stat label="USUÁRIOS" value={data.stats.users ?? data.users.length} icon="users" /><Stat label="ONLINE NAS CALLS" value={data.stats.online ?? 0} icon="phone" /><Stat label="CANAIS ATIVOS" value={data.stats.channels ?? data.channels.length} icon="chat" /><Stat label="CONVITES ATIVOS" value={data.stats.activeInvites ?? 0} icon="shield" /></div><div className="admin-grid"><section className="admin-card"><div className="admin-card-head"><div><h2>Atividade recente</h2><span className="helper">Eventos administrativos e de moderação.</span></div><Badge tone="purple">Painel</Badge></div>{data.activities.length ? <div className="activity-list">{data.activities.slice(0, 12).map((item) => <div className="activity-item" key={item.id}><i className="activity-bullet" /><span><b style={{ color: '#fff' }}>{activityLabel(item)}</b><br />{item.details || 'Sem detalhes'}<br />{new Date(item.created_at).toLocaleString('pt-BR')}</span></div>)}</div> : <EmptyState icon="chat" title="Sem atividade registrada" description="As ações do painel aparecerão aqui." />}</section><section className="admin-card"><div className="admin-card-head"><div><h2>Estado do servidor</h2><span className="helper">Resumo das configurações atuais.</span></div><Badge tone={data.settings.maintenance_mode ? 'yellow' : 'green'}>{data.settings.maintenance_mode ? 'Manutenção' : 'Operacional'}</Badge></div><div className="toggle-row"><div><strong>Modo manutenção</strong><span>Bloqueia novas entradas de membros e convidados.</span></div><span className={`presence-dot ${data.settings.maintenance_mode ? 'away' : ''}`} /></div><div className="toggle-row"><div><strong>Logs Discord</strong><span>Registro de acessos e eventos.</span></div><Badge tone={data.settings.discord_logs !== false ? 'green' : 'neutral'}>{data.settings.discord_logs !== false ? 'Ativo' : 'Desligado'}</Badge></div><div className="toggle-row"><div><strong>Limite por call</strong><span>Máximo configurado para cada sala.</span></div><b>{data.settings.max_users ?? 'Ilimitado'}</b></div></section></div></>}
 
-    {tab === 'usuarios' && <section className="admin-card"><div className="admin-card-head"><div><h2>Usuários</h2><span className="helper">Contas, cargos, presença e controle de acesso.</span></div><button className="primary-btn button-sm" onClick={() => setUserModal(true)}><Icon name="plus" size={14} /> Novo usuário</button></div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Usuário</th><th>E-mail</th><th>Ativação</th><th>Presença</th><th>Cargo</th><th>Criado</th><th>Ações</th></tr></thead><tbody>{filteredUsers.map((user) => <tr key={user.id}><td><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Avatar name={user.username} size="sm" status={user.presence_status || 'offline'} /><div><b>{user.username}</b><div className="helper">{user.id.slice(0, 8)}...</div></div></div></td><td><span style={{ fontSize: 12 }}>{user.email || '—'}</span></td><td><Badge tone={user.email_confirmed ? 'green' : 'yellow'}>{user.email_confirmed ? 'Ativo' : 'Pendente'}</Badge></td><td><Badge tone={user.presence_status === 'online' ? 'green' : user.presence_status === 'away' ? 'yellow' : 'neutral'}>{user.presence_status || 'offline'}</Badge></td><td><select value={user.role} disabled={busy} onChange={(e) => action({ action: 'update-user', id: user.id, role: e.target.value, status: user.status }, 'Cargo atualizado.')}><option value="membro">Membro</option><option value="admin">Admin</option></select></td><td>{new Date(user.created_at).toLocaleDateString('pt-BR')}</td><td><div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>{!user.email_confirmed && <button className="secondary-btn button-sm" disabled={busy} onClick={() => resendActivation(user)}>Reenviar ativação</button>}<button className={`button-sm ${user.status === 'ativo' ? 'danger-btn' : 'primary-btn'}`} disabled={busy} onClick={() => action({ action: 'update-user', id: user.id, role: user.role, status: user.status === 'ativo' ? 'suspenso' : 'ativo' }, user.status === 'ativo' ? 'Usuário suspenso.' : 'Usuário reativado.')}>{user.status === 'ativo' ? 'Suspender' : 'Reativar'}</button>{user.role !== 'admin' && <button className="danger-btn button-sm" disabled={busy} onClick={() => askConfirm('Excluir usuário?', `A conta ${user.username} será excluída permanentemente.`, () => action({ action: 'delete-user', id: user.id }, 'Usuário excluído.'))}>Excluir</button>}</div></td></tr>)}</tbody></table></div>{!filteredUsers.length && <div className="admin-empty">Nenhum usuário encontrado.</div>}</section>}
+    {tab === 'usuarios' && <section className="admin-card"><div className="admin-card-head"><div><h2>Usuários</h2><span className="helper">Contas, cargos, presença e controle de acesso.</span></div><button className="primary-btn button-sm" onClick={() => setUserModal(true)}><Icon name="plus" size={14} /> Novo usuário</button></div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Usuário</th><th>E-mail</th><th>Ativação</th><th>Presença</th><th>Cargo</th><th>Criado</th><th>Ações</th></tr></thead><tbody>{filteredUsers.map((user) => <tr key={user.id}><td><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Avatar name={user.username} size="sm" status={user.presence_status || 'offline'} /><div><b>{user.username}</b><div className="helper">{user.id.slice(0, 8)}...</div></div></div></td><td><span style={{ fontSize: 12 }}>{user.email || '—'}</span></td><td><Badge tone={user.email_confirmed ? 'green' : 'yellow'}>{user.email_confirmed ? 'Ativo' : 'Pendente'}</Badge></td><td><Badge tone={user.presence_status === 'online' ? 'green' : user.presence_status === 'away' ? 'yellow' : 'neutral'}>{user.presence_status || 'offline'}</Badge></td><td><select value={user.role} disabled={busy} onChange={(e) => action({ action: 'update-user', id: user.id, role: e.target.value, status: user.status }, 'Cargo atualizado.')}><option value="membro">Membro</option><option value="admin">Admin</option></select></td><td>{new Date(user.created_at).toLocaleDateString('pt-BR')}</td><td><div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>{!user.email_confirmed && <button className="secondary-btn button-sm" disabled={busy} onClick={() => resendActivation(user)}>Reenviar ativação</button>}<button className={`button-sm ${user.status === 'ativo' ? 'danger-btn' : 'primary-btn'}`} disabled={busy} onClick={() => action({ action: 'update-user', id: user.id, role: user.role, status: user.status === 'ativo' ? 'suspenso' : 'ativo' }, user.status === 'ativo' ? 'Usuário suspenso.' : 'Usuário reativado.')}>{user.status === 'ativo' ? 'Suspender' : 'Reativar'}</button>{user.role !== 'admin' && <button className="danger-btn button-sm" disabled={busy} onClick={() => askConfirm('Excluir usuário?', `${user.email_confirmed ? `A conta ${user.username}` : `O cadastro pendente de ${user.email || user.username}`} será excluído permanentemente. ${!user.email_confirmed ? 'O convite de ativação também será cancelado no Clerk.' : 'A conta correspondente no Clerk também será excluída.'}`, () => action({ action: 'delete-user', id: user.id }, 'Usuário excluído e acesso cancelado.'))}>Excluir</button>}</div></td></tr>)}</tbody></table></div>{!filteredUsers.length && <div className="admin-empty">Nenhum usuário encontrado.</div>}</section>}
 
     {tab === 'convites' && <section className="admin-card"><div className="admin-card-head"><div><h2>Convites</h2><span className="helper">Códigos temporários para acesso de convidados.</span></div><button className="primary-btn button-sm" onClick={() => { setGeneratedCode(''); setInviteModal(true); }}><Icon name="plus" size={14} /> Gerar convite</button></div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Final</th><th>Convidado</th><th>Call</th><th>Expira</th><th>Status</th><th>Criado</th><th>Ação</th></tr></thead><tbody>{filteredInvites.map((invite) => { const [label, tone] = inviteStatus(invite); return <tr key={invite.id}><td><b>••••{invite.code_preview}</b></td><td>{invite.guest_name || 'Convidado'}</td><td>{invite.room_name ? `# ${invite.room_name}` : '—'}</td><td>{new Date(invite.expires_at).toLocaleString('pt-BR')}</td><td><Badge tone={tone}>{label}</Badge></td><td>{new Date(invite.created_at).toLocaleString('pt-BR')}</td><td>{label === 'Ativo' && <button className="danger-btn button-sm" disabled={busy} onClick={() => action({ action: 'revoke-invite', id: invite.id }, 'Convite revogado.')}>Revogar</button>}</td></tr>; })}</tbody></table></div>{!filteredInvites.length && <div className="admin-empty">Nenhum convite encontrado.</div>}</section>}
 
