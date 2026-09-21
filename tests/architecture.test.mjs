@@ -68,6 +68,43 @@ test('call client has reconnect protection and room move synchronization', () =>
   assert.match(source, /onRoomMoved\?\.\(roomName, token\)/);
 });
 
+test('MoveParticipant is idempotent after a completed transfer', () => {
+  const source = read('app/api/admin/participants/route.js');
+
+  assert.match(source, /alreadyAtDestination/);
+  assert.match(source, /idempotent: true/);
+  assert.match(source, /participant_move_idempotent/);
+  assert.match(source, /currentGuestRoom === destinationRoom/);
+  assert.match(source, /mode: 'already_at_destination'/);
+});
+
+test('guest reconnect reconciles the server room and refreshes the LiveKit token', () => {
+  const serverPage = read('app/servidor/page.js');
+  const callClient = read('components/CallPolishSafe.js');
+
+  assert.match(serverPage, /const handleCallReconnected = useCallback/);
+  assert.match(serverPage, /fetch\('\/api\/guest\/session'/);
+  assert.match(serverPage, /session\.currentRoom/);
+  assert.match(serverPage, /await handleRoomMoved\(serverRoom, tokenJson\.token\)/);
+  assert.match(serverPage, /onCallReconnected=\{handleCallReconnected\}/);
+  assert.match(callClient, /onCallReconnected\?\.\(room\?\.name \|\| channel\.name\)/);
+});
+
+test('guest transfer end-to-end contract covers move, LiveKit room event and UI reconciliation', () => {
+  const route = read('app/api/admin/participants/route.js');
+  const page = read('app/servidor/page.js');
+  const client = read('components/CallPolishSafe.js');
+
+  assert.match(route, /guest_sessions/);
+  assert.match(route, /current_room_name: destinationRoom/);
+  assert.match(route, /service\.moveParticipant\(sourceRoom, identity, destinationRoom\)/);
+  assert.match(client, /RoomEvent\.Reconnected/);
+  assert.match(page, /onRoomMoved=\{handleRoomMoved\}/);
+  assert.match(page, /onCallReconnected=\{handleCallReconnected\}/);
+  assert.match(page, /setActive\(targetChannel\)/);
+  assert.match(page, /setToken\(movedToken\)/);
+});
+
 test('audit migration records request context fields', () => {
   const migration = read('supabase/migrations/20260921_observability.sql');
   assert.match(migration, /ip_address/);
