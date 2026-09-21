@@ -27,7 +27,6 @@ export async function GET() {
       role: actor.role,
       status: actor.profile.status,
       presence_status: actor.profile.presence_status || 'offline',
-      must_change_password: false,
     },
   }, {
     headers: {
