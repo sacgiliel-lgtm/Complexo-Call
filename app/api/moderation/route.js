@@ -15,7 +15,8 @@ export async function POST(request) {
   const identity = String(body.identity || '');
   const action = String(body.action || '');
   if (!room || !identity || !['disconnect', 'mute'].includes(action)) return Response.json({ error: 'Dados de moderação inválidos.' }, { status: 400 });
-  if (identity === actor.id) return Response.json({ error: 'Você não pode moderar a própria sessão.' }, { status: 400 });
+  const ownIdentity = actor.type === 'member' ? actor.clerkUserId : actor.id;
+  if (identity === ownIdentity) return Response.json({ error: 'Você não pode moderar a própria sessão.' }, { status: 400 });
   try {
     const { data: channel } = await actor.admin.from('channels').select('id,name,is_active').eq('name', room).maybeSingle();
     if (!channel || !channel.is_active) return Response.json({ error: 'Canal indisponível.' }, { status: 404 });
