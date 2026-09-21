@@ -71,6 +71,7 @@ export async function POST(request) {
       actor: { ...requester.profile, id: requester.id, email: requester.email },
       target: targetProfile.username || email,
       details: `Reenvio do convite Clerk para ${email}`,
+      request,
     });
 
     return Response.json({ success: true, emailSent: true, invitationId: invitation.id, message: `E-mail de ativação reenviado para ${email}.` });
