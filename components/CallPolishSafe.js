@@ -136,7 +136,7 @@ function useLobbyPreview({ audio, video, audioDevice, cameraDevice, onDevices, o
   return { videoRef, micLevel };
 }
 
-export function CallExperience({ token, serverUrl, channel, user, rightTab, rightPanelOpen = true, onRightTab, messages, messageText, setMessageText, onSendMessage, onToast, onDisconnect, onRoomMoved, onModerate, onCreateInvite, participantFilter = '' }) {
+export function CallExperience({ token, serverUrl, channel, user, rightTab, rightPanelOpen = true, onRightTab, messages, messageText, setMessageText, onSendMessage, onToast, onDisconnect, onRoomMoved, onModerate, onCreateInvite, participantFilter = '', onCallReconnecting, onCallReconnected }) {
   const [ready, setReady] = useState(false);
   const [joinAudio, setJoinAudio] = useState(true);
   const [joinVideo, setJoinVideo] = useState(false);
@@ -145,9 +145,12 @@ export function CallExperience({ token, serverUrl, channel, user, rightTab, righ
   const [endedSummary, setEndedSummary] = useState(null);
   const startedAtRef = useRef(null);
   const finishTimerRef = useRef(null);
+  const manualDisconnectRef = useRef(false);
+  const reconnectGraceTimerRef = useRef(null);
 
   useEffect(() => () => {
     if (finishTimerRef.current) window.clearTimeout(finishTimerRef.current);
+    if (reconnectGraceTimerRef.current) window.clearTimeout(reconnectGraceTimerRef.current);
   }, []);
 
   const roomOptions = useMemo(() => ({
@@ -157,12 +160,45 @@ export function CallExperience({ token, serverUrl, channel, user, rightTab, righ
     videoCaptureDefaults: cameraDevice ? { deviceId: cameraDevice } : undefined,
   }), [audioDevice, cameraDevice]);
 
-  function handleConnected() { startedAtRef.current = Date.now(); }
+  function clearReconnectGrace() {
+    if (reconnectGraceTimerRef.current) window.clearTimeout(reconnectGraceTimerRef.current);
+    reconnectGraceTimerRef.current = null;
+  }
+
+  function handleConnected() {
+    clearReconnectGrace();
+    startedAtRef.current = startedAtRef.current || Date.now();
+    setEndedSummary(null);
+    manualDisconnectRef.current = false;
+  }
+
+  function handleReconnected() {
+    clearReconnectGrace();
+    setEndedSummary(null);
+    manualDisconnectRef.current = false;
+    onCallReconnected?.();
+  }
+
+  function handleManualDisconnect() {
+    manualDisconnectRef.current = true;
+    clearReconnectGrace();
+  }
+
   function handleDisconnected() {
     const duration = startedAtRef.current ? Math.floor((Date.now() - startedAtRef.current) / 1000) : 0;
-    setEndedSummary({ duration });
-    if (finishTimerRef.current) window.clearTimeout(finishTimerRef.current);
-    finishTimerRef.current = window.setTimeout(() => onDisconnect?.({ duration }), 2600);
+    if (manualDisconnectRef.current) {
+      setEndedSummary({ duration });
+      if (finishTimerRef.current) window.clearTimeout(finishTimerRef.current);
+      finishTimerRef.current = window.setTimeout(() => onDisconnect?.({ duration }), 600);
+      return;
+    }
+
+    clearReconnectGrace();
+    reconnectGraceTimerRef.current = window.setTimeout(() => {
+      setEndedSummary({ duration });
+      if (finishTimerRef.current) window.clearTimeout(finishTimerRef.current);
+      finishTimerRef.current = window.setTimeout(() => onDisconnect?.({ duration }), 2600);
+    }, 12000);
   }
 
   if (endedSummary) return <CallEndedScreen channel={channel} user={user} duration={endedSummary.duration} onBack={() => onDisconnect?.({ duration: endedSummary.duration })} />;
@@ -171,7 +207,7 @@ export function CallExperience({ token, serverUrl, channel, user, rightTab, righ
   return <div className={styles.root}>
     <LiveKitRoom token={token} serverUrl={serverUrl} connect audio={joinAudio} video={joinVideo} options={roomOptions} onConnected={handleConnected} onDisconnected={handleDisconnected} onError={(error) => onToast?.({ type: 'error', title: 'Falha na chamada', message: error?.message || 'A conexão foi interrompida.' })} onMediaDeviceFailure={(failure) => onToast?.({ type: 'error', title: 'Dispositivo indisponível', message: failure?.message || 'Verifique sua câmera ou microfone.' })}>
       <RoomAudioRenderer />
-      <ConnectedCall channel={channel} user={user} rightTab={rightTab} rightPanelOpen={rightPanelOpen} onRightTab={onRightTab} onCloseRight={() => onRightTab('participants', false)} messages={messages} messageText={messageText} setMessageText={setMessageText} onSendMessage={onSendMessage} onToast={onToast} onRoomMoved={onRoomMoved} onModerate={onModerate} onCreateInvite={onCreateInvite} participantFilter={participantFilter} />
+      <ConnectedCall channel={channel} user={user} rightTab={rightTab} rightPanelOpen={rightPanelOpen} onRightTab={onRightTab} onCloseRight={() => onRightTab('participants', false)} messages={messages} messageText={messageText} setMessageText={setMessageText} onSendMessage={onSendMessage} onToast={onToast} onRoomMoved={onRoomMoved} onModerate={onModerate} onCreateInvite={onCreateInvite} participantFilter={participantFilter} onManualDisconnect={handleManualDisconnect} onCallReconnecting={onCallReconnecting} onCallReconnected={handleReconnected} />
       <StartMediaButton label="Ativar áudio" className={styles.startMedia} />
     </LiveKitRoom>
   </div>;
@@ -206,7 +242,7 @@ function CallLobby({ channel, user, audio, video, setAudio, setVideo, audioDevic
   </div></div>;
 }
 
-function ConnectedCall({ channel, user, rightTab, rightPanelOpen, onRightTab, onCloseRight, messages, messageText, setMessageText, onSendMessage, onToast, onRoomMoved, onModerate, onCreateInvite, participantFilter }) {
+function ConnectedCall({ channel, user, rightTab, rightPanelOpen, onRightTab, onCloseRight, messages, messageText, setMessageText, onSendMessage, onToast, onRoomMoved, onModerate, onCreateInvite, participantFilter, onManualDisconnect, onCallReconnecting, onCallReconnected }) {
   const participants = useParticipants();
   const cameraTracks = useTracks([{ source: Track.Source.Camera, withPlaceholder: true }]);
   const screenTracks = useTracks([{ source: Track.Source.ScreenShare, withPlaceholder: false }]);
@@ -236,6 +272,7 @@ function ConnectedCall({ channel, user, rightTab, rightPanelOpen, onRightTab, on
   const previous = useRef(new Set());
   const mounted = useRef(false);
   const reconnecting = String(connectionState || '').toLowerCase().includes('reconnecting');
+  const reconnectAuditRef = useRef(false);
   function auditCallEvent(action, target, details = '') { fetch('/api/audit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, channel: displayedRoomName, target, details }), keepalive: true }).catch(() => {}); }
   const previousScreenSharesRef = useRef(new Set());
   
@@ -292,21 +329,33 @@ function ConnectedCall({ channel, user, rightTab, rightPanelOpen, onRightTab, on
   }, [screenTracks, participants]);
   useEffect(() => { if (focusedIdentity && !participants.some((participant) => participant.identity === focusedIdentity)) setFocusedIdentity(null); }, [focusedIdentity, participants]);
   useEffect(() => {
-    if (reconnecting) {
-      const timer = window.setTimeout(() => onToast?.({ type: 'info', title: 'Conexão', message: 'Tentando restaurar a chamada...' }), 1200);
-      return () => window.clearTimeout(timer);
+    if (!reconnecting) return;
+    if (!reconnectAuditRef.current) {
+      reconnectAuditRef.current = true;
+      auditCallEvent('call_reconnecting', localParticipant?.identity, 'Conexão temporariamente perdida; LiveKit iniciou a reconexão automática.');
+      onCallReconnecting?.();
     }
-  }, [reconnecting, onToast]);
+    const timer = window.setTimeout(() => onToast?.({ type: 'info', title: 'Conexão', message: 'Tentando restaurar a chamada...' }), 800);
+    return () => window.clearTimeout(timer);
+  }, [reconnecting, onCallReconnecting, onToast, localParticipant?.identity]);
+
   useEffect(() => {
-    const handleReconnected = () => onToast?.({ type: 'success', title: 'Conexão restabelecida', message: 'A chamada foi reconectada com sucesso.' });
-    const handleDisconnected = () => onToast?.({ type: 'error', title: 'Conexão encerrada', message: 'A conexão com a chamada foi encerrada.' });
+    const handleReconnected = () => {
+      reconnectAuditRef.current = false;
+      auditCallEvent('call_reconnected', localParticipant?.identity, 'A conexão com o LiveKit foi restabelecida.');
+      onToast?.({ type: 'success', title: 'Conexão restabelecida', message: 'A chamada foi reconectada com sucesso.' });
+      onCallReconnected?.();
+    };
+    const handleDisconnected = () => {
+      reconnectAuditRef.current = false;
+    };
     room.on(RoomEvent.Reconnected, handleReconnected);
     room.on(RoomEvent.Disconnected, handleDisconnected);
     return () => {
       room.off(RoomEvent.Reconnected, handleReconnected);
       room.off(RoomEvent.Disconnected, handleDisconnected);
     };
-  }, [room, onToast]);
+  }, [room, onCallReconnected, onToast, localParticipant?.identity]);
   useEffect(() => {
     if (rightTab === 'chat') {
       setUnreadMessages(0);
@@ -444,7 +493,7 @@ function ConnectedCall({ channel, user, rightTab, rightPanelOpen, onRightTab, on
         <div className={styles.shortcuts}><span><kbd>M</kbd> microfone</span><span><kbd>C</kbd> câmera</span><span><kbd>S</kbd> tela</span><span><kbd>F</kbd> foco</span><span><kbd>Esc</kbd> sair</span></div>
       </div>
       {reconnecting && <div className={styles.reconnectOverlay}><div className={styles.reconnectCard}><div className={styles.reconnectIcon}><Icon name="wifi" size={20} /></div><strong>Reconectando...</strong><span>Estamos tentando restaurar sua conexão.</span><div className={styles.loaderLine}><i /></div></div></div>}
-      {!screenFocusSid && <div className={styles.toolbarWrap}><CallControls focusMode={focusMode} setFocusMode={setFocusMode} moreOpen={moreOpen} setMoreOpen={setMoreOpen} reactionsOpen={reactionsOpen} setReactionsOpen={setReactionsOpen} onReaction={sendReaction} /></div>}
+      {!screenFocusSid && <div className={styles.toolbarWrap}><CallControls focusMode={focusMode} setFocusMode={setFocusMode} moreOpen={moreOpen} setMoreOpen={setMoreOpen} reactionsOpen={reactionsOpen} setReactionsOpen={setReactionsOpen} onReaction={sendReaction} onLeave={onManualDisconnect} /></div>}
     </section>
     <aside className={`${styles.panel} ${rightPanelOpen ? styles.panelOpen : ''} ${screenFocusSid ? styles.panelHiddenForScreen : ''}`}><div className={styles.panelTabs}><button className={rightTab === 'participants' ? styles.activeTab : ''} onClick={() => onRightTab('participants', true)}>Pessoas <span>{participants.length}</span></button><button className={rightTab === 'chat' ? styles.activeTab : ''} onClick={() => onRightTab('chat', true)}>Chat{unreadMessages > 0 ? <span className={styles.unreadTab}>{unreadMessages > 99 ? '99+' : unreadMessages}</span> : messages.length > 0 && <i />}</button><button className="icon-btn mobile-only" onClick={onCloseRight} aria-label="Fechar painel"><Icon name="close" size={16} /></button></div>
       {rightTab === 'participants' ? <div className={styles.panelScroll}><div className={styles.panelTitle}>NESTA CHAMADA <span className={styles.panelTitleCount}>{filtered.length}</span></div>{filtered.length ? filtered.map((participant) => { const name = displayName(participant); const local = participant.identity === localParticipant?.identity; const role = participantRole(participant); return <div key={participant.identity} className={`${styles.participantRow} ${participant.isSpeaking ? styles.speakingRow : ''}`}><Avatar name={name} size="sm" status="online" /><div className={styles.participantInfo}><strong>{name}{local ? ' (você)' : ''}</strong><span><i />{roleLabel(role)}{participant.isSpeaking ? ' • falando agora' : participant.isScreenShareEnabled ? ' • compartilhando a tela' : ''}</span></div><div className={styles.participantTools}><span title="Microfone" className={participant.isMicrophoneEnabled ? styles.mediaOn : styles.mediaOff}><Icon name={participant.isMicrophoneEnabled ? 'mic' : 'micOff'} size={12} /></span><span title="Câmera" className={participant.isCameraEnabled ? styles.mediaOn : styles.mediaOff}><Icon name={participant.isCameraEnabled ? 'camera' : 'cameraOff'} size={12} /></span>{participant.isScreenShareEnabled && <span title="Compartilhando a tela" className={styles.mediaOn}><Icon name="monitor" size={12} /></span>}{!local && ['admin', 'membro'].includes(user.role) && <><button className="icon-btn" title={participant.isMicrophoneEnabled ? 'Silenciar microfone' : 'Microfone indisponível'} disabled={!participant.isMicrophoneEnabled} onClick={() => onModerate?.(displayedRoomName, participant.identity, 'mute')}><Icon name="mic" size={13} /></button><button className="icon-btn" title="Desconectar" onClick={() => onModerate?.(displayedRoomName, participant.identity, 'disconnect')}><Icon name="logout" size={13} /></button></>}</div></div>; }) : <EmptyState icon="users" title="Nenhum participante encontrado" description="Tente pesquisar por outro nome." />}</div> : <div className={styles.chatWrap}><div className={styles.chatSearch}><div className="search-box" style={{ width: '100%' }}><Icon name="search" size={15} /><input className="input" value={chatSearch} onChange={(event) => setChatSearch(event.target.value)} placeholder="Pesquisar mensagens..." /></div></div><div className={styles.chatList} ref={chatListRef}>{filteredMessages.length ? filteredMessages.map((message) => <div className={styles.chatMessage} key={message.id}><Avatar name={message.sender_name} size="sm" /><div className={styles.chatBody}><div><strong>{message.sender_name}</strong><span>{new Date(message.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span></div><p>{message.content}</p></div></div>) : <EmptyState icon="chat" title={chatSearch ? 'Nenhuma mensagem encontrada' : 'Sem mensagens ainda'} description={chatSearch ? 'Tente outro termo.' : 'Envie a primeira mensagem para começar a conversa.'} />}</div>
@@ -472,7 +521,7 @@ function ParticipantCard({ participant, name, local, role, quality, cameraRef, f
   </div>;
 }
 
-function CallControls({ focusMode, setFocusMode, moreOpen, setMoreOpen, reactionsOpen, setReactionsOpen, onReaction }) {
+function CallControls({ focusMode, setFocusMode, moreOpen, setMoreOpen, reactionsOpen, setReactionsOpen, onReaction, onLeave }) {
   const { localParticipant } = useLocalParticipant();
   const room = useRoomContext();
   useEffect(() => {
@@ -483,11 +532,11 @@ function CallControls({ focusMode, setFocusMode, moreOpen, setMoreOpen, reaction
       if (event.key.toLowerCase() === 'c') localParticipant?.setCameraEnabled(!localParticipant.isCameraEnabled).catch(() => {});
       if (event.key.toLowerCase() === 's') localParticipant?.setScreenShareEnabled(!localParticipant.isScreenShareEnabled).catch(() => {});
       if (event.key.toLowerCase() === 'f') setFocusMode((value) => !value);
-      if (event.key === 'Escape') room?.disconnect();
+      if (event.key === 'Escape') { onLeave?.(); room?.disconnect(); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [localParticipant, room, setFocusMode]);
+  }, [localParticipant, room, setFocusMode, onLeave]);
   const button = (enabled, label, icon, action) => <button type="button" className={`${styles.control} ${enabled ? styles.controlEnabled : styles.controlOff}`} onClick={action} title={label}>{enabled ? <Icon name={icon} size={19} /> : <Icon name={`${icon}Off`} size={19} />}<span>{label}</span></button>;
   return <div className={styles.toolbar}>
     {button(!!localParticipant?.isMicrophoneEnabled, localParticipant?.isMicrophoneEnabled ? 'Microfone ligado' : 'Ativar microfone', 'mic', () => localParticipant?.setMicrophoneEnabled(!localParticipant.isMicrophoneEnabled))}
@@ -496,7 +545,7 @@ function CallControls({ focusMode, setFocusMode, moreOpen, setMoreOpen, reaction
     <div className={styles.menuWrap}><button type="button" className={`${styles.control} ${moreOpen ? styles.controlSelected : ''}`} onClick={() => setMoreOpen((value) => !value)} title="Mais opções"><Icon name="settings" size={18} /><span>Mais</span></button>{moreOpen && <div className={styles.moreMenu}><div className={styles.menuTitle}>Dispositivos</div><div className={styles.deviceItem}><span>Troque a câmera ou o microfone pelo navegador.</span></div></div>}</div>
     <div className={styles.menuWrap}><button type="button" className={`${styles.control} ${reactionsOpen ? styles.controlSelected : ''}`} onClick={() => setReactionsOpen((value) => !value)} title="Reações">☺<span>Reagir</span></button>{reactionsOpen && <div className={styles.reactionMenu}>{REACTIONS.map((emoji) => <button key={emoji} type="button" onClick={() => { onReaction(emoji); setReactionsOpen(false); }}>{emoji}</button>)}</div>}</div>
     <button type="button" className={`${styles.control} ${focusMode ? styles.controlSelected : ''}`} onClick={() => setFocusMode((value) => !value)} title="Modo foco"><Icon name="maximize" size={18} /><span>Foco</span></button>
-    <button type="button" className={`${styles.control} ${styles.exit}`} title="Sair da chamada" onClick={() => room?.disconnect()}><Icon name="phone" size={19} /><span>Sair</span></button>
+    <button type="button" className={`${styles.control} ${styles.exit}`} title="Sair da chamada" onClick={() => { onLeave?.(); room?.disconnect(); }}><Icon name="phone" size={19} /><span>Sair</span></button>
   </div>;
 }
 
