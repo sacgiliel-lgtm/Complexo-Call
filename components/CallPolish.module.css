@@ -362,10 +362,11 @@
   bottom:20px;
   opacity:1;
   transform:translateX(-50%) translateY(0) scale(1);
+  will-change:opacity,transform,filter;
   transition:
-    opacity .28s ease,
-    transform .32s cubic-bezier(.22,1,.36,1),
-    filter .28s ease;
+    opacity .22s ease-out,
+    transform .28s cubic-bezier(.2,.75,.3,1),
+    filter .22s ease-out;
 }
 .toolbarWrap:before{
   content:"";
@@ -376,21 +377,21 @@
   height:38px;
   z-index:-1;
   border-radius:999px;
-  background:rgba(155,92,255,.16);
+  background:rgba(155,92,255,.14);
   filter:blur(24px);
-  opacity:.75;
+  opacity:.68;
   pointer-events:none;
-  transition:opacity .3s ease,transform .3s ease;
+  transition:opacity .24s ease-out,transform .28s ease-out;
 }
 .toolbarHidden{
   opacity:0;
-  transform:translateX(-50%) translateY(18px) scale(.96);
-  filter:blur(4px);
+  transform:translateX(-50%) translateY(10px) scale(.985);
+  filter:blur(1.5px);
   pointer-events:none;
 }
 .toolbarHidden:before{
   opacity:0;
-  transform:scale(.85);
+  transform:scale(.92);
 }
 .toolbar{
   position:relative;
