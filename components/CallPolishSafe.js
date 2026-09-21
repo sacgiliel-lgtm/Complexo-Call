@@ -264,8 +264,10 @@ function ConnectedCall({ channel, user, rightTab, rightPanelOpen, onRightTab, on
   const [failedMessage, setFailedMessage] = useState('');
   const [screenFocusSid, setScreenFocusSid] = useState(null);
   const [screenControlsVisible, setScreenControlsVisible] = useState(true);
+  const [toolbarVisible, setToolbarVisible] = useState(true);
   const screenFocusRef = useRef(null);
   const screenControlsTimerRef = useRef(null);
+  const toolbarTimerRef = useRef(null);
   const chatListRef = useRef(null);
   const lastMessageCountRef = useRef(messages.length);
   const chatInitializedRef = useRef(false);
@@ -413,6 +415,13 @@ function ConnectedCall({ channel, user, rightTab, rightPanelOpen, onRightTab, on
     addReaction(emoji, localParticipant);
     try { await localParticipant.publishData(new TextEncoder().encode(JSON.stringify({ emoji })), { reliable: false, topic: REACTION_TOPIC }); } catch (error) { onToast?.({ type: 'error', title: 'Reação', message: error?.message || 'Não foi possível enviar a reação.' }); }
   }
+  function showToolbar() {
+    setToolbarVisible(true);
+    if (toolbarTimerRef.current) window.clearTimeout(toolbarTimerRef.current);
+    if (!moreOpen && !reactionsOpen && !screenFocusSid) {
+      toolbarTimerRef.current = window.setTimeout(() => setToolbarVisible(false), 3600);
+    }
+  }
   function showScreenControls() {
     setScreenControlsVisible(true);
     if (screenControlsTimerRef.current) window.clearTimeout(screenControlsTimerRef.current);
@@ -428,6 +437,7 @@ function ConnectedCall({ channel, user, rightTab, rightPanelOpen, onRightTab, on
     setScreenFocusSid(null);
     setScreenControlsVisible(true);
     if (screenControlsTimerRef.current) window.clearTimeout(screenControlsTimerRef.current);
+    showToolbar();
   }
   async function toggleScreenFullscreen() {
     try {
@@ -478,7 +488,14 @@ function ConnectedCall({ channel, user, rightTab, rightPanelOpen, onRightTab, on
   return <div className={styles.connected}>
     <section className={styles.callArea}>
       <header className={styles.topbar}><div className={styles.topbarLeft}><div className={styles.topbarBrandLogo} aria-hidden="true" /><div className={styles.channelIcon}><Icon name="phone" size={17} /></div><div><strong>#{displayedRoomName}</strong><span>{participants.length} {participants.length === 1 ? 'pessoa' : 'pessoas'} na chamada</span></div></div><div className={styles.topbarCenter}><span className={styles.livePill}><i /> Ao vivo</span><span className={styles.duration}>{formatDuration(elapsed)}</span></div><div className={styles.topbarRight}><div className={styles.qualityWrap}><button className={`${styles.qualityPill} ${styles[`quality_${qualityTone(quality)}`]}`} onClick={() => setQualityOpen((value) => !value)}><span className={styles.qualityBars}><i /><i /><i /><i /></span><span>{qualityLabel(quality)}</span></button>{qualityOpen && <div className={styles.popover}><div className={styles.popoverTitle}>Diagnóstico da conexão</div><div className={styles.qualityMain}><span className={`${styles.qualityOrb} ${styles[`quality_${qualityTone(quality)}`]}`}><Icon name="wifi" size={18} /></span><div><strong>{qualityLabel(quality)}</strong><span>Qualidade da sua conexão</span></div></div><div className={styles.qualityRow}><span>Status</span><b>{connectionText}</b></div><div className={styles.qualityRow}><span>Qualidade</span><b>{qualityLabel(quality)}</b></div><div className={styles.qualityRow}><span>Participantes</span><b>{participants.length}</b></div><div className={styles.qualityRow}><span>Tela compartilhada</span><b>{activeScreenshares || "Nenhuma"}</b></div><div className={styles.qualityRow}><span>Dispositivos</span><b>{localMedia}</b></div><div className={styles.qualityHint}>A qualidade é estimada pelo LiveKit com base em condições de rede como perda de pacotes, latência e jitter.</div></div>}</div>{user?.type === 'member' && <button type="button" className={styles.inviteButton} onClick={onCreateInvite} title="Criar convite para esta chamada"><Icon name="shield" size={15} /><span>Convidar</span></button>}<button className="icon-btn chatHeaderButton" onClick={() => onRightTab('chat', true)} title="Abrir chat"><Icon name="chat" size={17} />{unreadMessages > 0 && <b className={styles.unreadBadge}>{unreadMessages > 99 ? '99+' : unreadMessages}</b>}</button></div></header>
-      <div className={styles.stage} onMouseMove={screenFocusSid ? showScreenControls : undefined}>
+      <div
+        className={styles.stage}
+        onPointerMove={() => {
+          showToolbar();
+          if (screenFocusSid) showScreenControls();
+        }}
+        onPointerDown={showToolbar}
+      >
         
         {screenAvailable.length > 0 ? (screenFocusSid && focusedScreen ? <div ref={screenFocusRef} className={styles.screenFocus} onMouseMove={showScreenControls} onMouseEnter={showScreenControls} onDoubleClick={toggleScreenFullscreen} onClick={() => { if (!screenControlsVisible) showScreenControls(); }}>
           <VideoTrack trackRef={focusedScreen} />
@@ -493,7 +510,23 @@ function ConnectedCall({ channel, user, rightTab, rightPanelOpen, onRightTab, on
         <div className={styles.shortcuts}><span><kbd>M</kbd> microfone</span><span><kbd>C</kbd> câmera</span><span><kbd>S</kbd> tela</span><span><kbd>F</kbd> foco</span><span><kbd>Esc</kbd> sair</span></div>
       </div>
       {reconnecting && <div className={styles.reconnectOverlay}><div className={styles.reconnectCard}><div className={styles.reconnectIcon}><Icon name="wifi" size={20} /></div><strong>Reconectando...</strong><span>Estamos tentando restaurar sua conexão.</span><div className={styles.loaderLine}><i /></div></div></div>}
-      {!screenFocusSid && <div className={styles.toolbarWrap}><CallControls focusMode={focusMode} setFocusMode={setFocusMode} moreOpen={moreOpen} setMoreOpen={setMoreOpen} reactionsOpen={reactionsOpen} setReactionsOpen={setReactionsOpen} onReaction={sendReaction} onLeave={onManualDisconnect} /></div>}
+      {!screenFocusSid && <div
+        className={styles.toolbarWrap + ' ' + (toolbarVisible ? '' : styles.toolbarHidden)}
+        onPointerEnter={showToolbar}
+        onFocus={showToolbar}
+        aria-hidden={!toolbarVisible}
+      >
+        <CallControls
+          focusMode={focusMode}
+          setFocusMode={setFocusMode}
+          moreOpen={moreOpen}
+          setMoreOpen={(value) => { setMoreOpen(value); showToolbar(); }}
+          reactionsOpen={reactionsOpen}
+          setReactionsOpen={(value) => { setReactionsOpen(value); showToolbar(); }}
+          onReaction={(emoji) => { sendReaction(emoji); showToolbar(); }}
+          onLeave={onManualDisconnect}
+        />
+      </div>}
     </section>
     <aside className={`${styles.panel} ${rightPanelOpen ? styles.panelOpen : ''} ${screenFocusSid ? styles.panelHiddenForScreen : ''}`}><div className={styles.panelTabs}><button className={rightTab === 'participants' ? styles.activeTab : ''} onClick={() => onRightTab('participants', true)}>Pessoas <span>{participants.length}</span></button><button className={rightTab === 'chat' ? styles.activeTab : ''} onClick={() => onRightTab('chat', true)}>Chat{unreadMessages > 0 ? <span className={styles.unreadTab}>{unreadMessages > 99 ? '99+' : unreadMessages}</span> : messages.length > 0 && <i />}</button><button className="icon-btn mobile-only" onClick={onCloseRight} aria-label="Fechar painel"><Icon name="close" size={16} /></button></div>
       {rightTab === 'participants' ? <div className={styles.panelScroll}><div className={styles.panelTitle}>NESTA CHAMADA <span className={styles.panelTitleCount}>{filtered.length}</span></div>{filtered.length ? filtered.map((participant) => { const name = displayName(participant); const local = participant.identity === localParticipant?.identity; const role = participantRole(participant); return <div key={participant.identity} className={`${styles.participantRow} ${participant.isSpeaking ? styles.speakingRow : ''}`}><Avatar name={name} size="sm" status="online" /><div className={styles.participantInfo}><strong>{name}{local ? ' (você)' : ''}</strong><span><i />{roleLabel(role)}{participant.isSpeaking ? ' • falando agora' : participant.isScreenShareEnabled ? ' • compartilhando a tela' : ''}</span></div><div className={styles.participantTools}><span title="Microfone" className={participant.isMicrophoneEnabled ? styles.mediaOn : styles.mediaOff}><Icon name={participant.isMicrophoneEnabled ? 'mic' : 'micOff'} size={12} /></span><span title="Câmera" className={participant.isCameraEnabled ? styles.mediaOn : styles.mediaOff}><Icon name={participant.isCameraEnabled ? 'camera' : 'cameraOff'} size={12} /></span>{participant.isScreenShareEnabled && <span title="Compartilhando a tela" className={styles.mediaOn}><Icon name="monitor" size={12} /></span>}{!local && ['admin', 'membro'].includes(user.role) && <><button className="icon-btn" title={participant.isMicrophoneEnabled ? 'Silenciar microfone' : 'Microfone indisponível'} disabled={!participant.isMicrophoneEnabled} onClick={() => onModerate?.(displayedRoomName, participant.identity, 'mute')}><Icon name="mic" size={13} /></button><button className="icon-btn" title="Desconectar" onClick={() => onModerate?.(displayedRoomName, participant.identity, 'disconnect')}><Icon name="logout" size={13} /></button></>}</div></div>; }) : <EmptyState icon="users" title="Nenhum participante encontrado" description="Tente pesquisar por outro nome." />}</div> : <div className={styles.chatWrap}><div className={styles.chatSearch}><div className="search-box" style={{ width: '100%' }}><Icon name="search" size={15} /><input className="input" value={chatSearch} onChange={(event) => setChatSearch(event.target.value)} placeholder="Pesquisar mensagens..." /></div></div><div className={styles.chatList} ref={chatListRef}>{filteredMessages.length ? filteredMessages.map((message) => <div className={styles.chatMessage} key={message.id}><Avatar name={message.sender_name} size="sm" /><div className={styles.chatBody}><div><strong>{message.sender_name}</strong><span>{new Date(message.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span></div><p>{message.content}</p></div></div>) : <EmptyState icon="chat" title={chatSearch ? 'Nenhuma mensagem encontrada' : 'Sem mensagens ainda'} description={chatSearch ? 'Tente outro termo.' : 'Envie a primeira mensagem para começar a conversa.'} />}</div>
