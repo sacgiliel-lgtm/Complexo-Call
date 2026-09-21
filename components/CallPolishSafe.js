@@ -151,15 +151,6 @@ export function CallExperience({ token, serverUrl, channel, user, rightTab, righ
   useEffect(() => () => {
     if (finishTimerRef.current) window.clearTimeout(finishTimerRef.current);
     if (reconnectGraceTimerRef.current) window.clearTimeout(reconnectGraceTimerRef.current);
-    if (toolbarTimerRef.current) window.clearTimeout(toolbarTimerRef.current);
-    if (screenControlsTimerRef.current) window.clearTimeout(screenControlsTimerRef.current);
-  }, []);
-
-  useEffect(() => {
-    toolbarTimerRef.current = window.setTimeout(() => setToolbarVisible(false), 4200);
-    return () => {
-      if (toolbarTimerRef.current) window.clearTimeout(toolbarTimerRef.current);
-    };
   }, []);
 
   const roomOptions = useMemo(() => ({
@@ -277,6 +268,18 @@ function ConnectedCall({ channel, user, rightTab, rightPanelOpen, onRightTab, on
   const screenFocusRef = useRef(null);
   const screenControlsTimerRef = useRef(null);
   const toolbarTimerRef = useRef(null);
+
+  useEffect(() => () => {
+    if (toolbarTimerRef.current) window.clearTimeout(toolbarTimerRef.current);
+    if (screenControlsTimerRef.current) window.clearTimeout(screenControlsTimerRef.current);
+  }, []);
+
+  useEffect(() => {
+    toolbarTimerRef.current = window.setTimeout(() => setToolbarVisible(false), 4200);
+    return () => {
+      if (toolbarTimerRef.current) window.clearTimeout(toolbarTimerRef.current);
+    };
+  }, []);
   const chatListRef = useRef(null);
   const lastMessageCountRef = useRef(messages.length);
   const chatInitializedRef = useRef(false);
