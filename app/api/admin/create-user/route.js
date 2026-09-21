@@ -87,6 +87,7 @@ export async function POST(request) {
       actor: { ...requester.profile, id: requester.id, email: requester.email },
       target: pendingUsername,
       details: `Cargo: ${role}; e-mail: ${email}; convite Clerk enviado`,
+      request,
     });
 
     return Response.json({
