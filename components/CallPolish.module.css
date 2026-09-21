@@ -355,3 +355,133 @@
   .screenLabel:before{animation:none}
   .screenCard{transition:none}
 }
+
+
+/* Auto-hiding floating call dock. */
+.toolbarWrap{
+  bottom:20px;
+  opacity:1;
+  transform:translateX(-50%) translateY(0) scale(1);
+  transition:
+    opacity .28s ease,
+    transform .32s cubic-bezier(.22,1,.36,1),
+    filter .28s ease;
+}
+.toolbarWrap:before{
+  content:"";
+  position:absolute;
+  left:12%;
+  right:12%;
+  bottom:-8px;
+  height:38px;
+  z-index:-1;
+  border-radius:999px;
+  background:rgba(155,92,255,.16);
+  filter:blur(24px);
+  opacity:.75;
+  pointer-events:none;
+  transition:opacity .3s ease,transform .3s ease;
+}
+.toolbarHidden{
+  opacity:0;
+  transform:translateX(-50%) translateY(18px) scale(.96);
+  filter:blur(4px);
+  pointer-events:none;
+}
+.toolbarHidden:before{
+  opacity:0;
+  transform:scale(.85);
+}
+.toolbar{
+  position:relative;
+  min-height:64px;
+  padding:7px;
+  gap:6px;
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:20px;
+  background:
+    linear-gradient(180deg,rgba(35,27,45,.78),rgba(12,9,17,.88));
+  box-shadow:
+    0 18px 45px rgba(0,0,0,.42),
+    0 2px 0 rgba(255,255,255,.045) inset,
+    0 0 0 1px rgba(155,92,255,.04);
+}
+.toolbar:before{
+  content:"";
+  position:absolute;
+  left:18%;
+  right:18%;
+  top:0;
+  height:1px;
+  border-radius:999px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.2),transparent);
+  pointer-events:none;
+}
+.toolbar .control{
+  width:50px;
+  height:50px;
+  border-radius:14px;
+  background:rgba(255,255,255,.035);
+  border-color:rgba(255,255,255,.07);
+  box-shadow:0 1px 0 rgba(255,255,255,.025) inset;
+}
+.toolbar .control:hover{
+  background:rgba(255,255,255,.08);
+  border-color:rgba(255,255,255,.15);
+  box-shadow:0 8px 20px rgba(0,0,0,.18);
+}
+.toolbar .exit{
+  width:58px;
+  background:rgba(243,87,104,.11);
+  border-color:rgba(243,87,104,.2);
+}
+.toolbar .exit:hover{
+  background:rgba(243,87,104,.2);
+  border-color:rgba(243,87,104,.34);
+}
+@media(max-width:820px){
+  .toolbarWrap{
+    bottom:9px;
+  }
+  .toolbar{
+    min-height:0;
+    border-radius:17px;
+  }
+  .toolbar .control{
+    width:44px;
+    height:44px;
+    border-radius:12px;
+  }
+  .toolbar .exit{
+    width:50px;
+  }
+}
+@media(max-width:520px){
+  .toolbarWrap{
+    bottom:7px;
+  }
+  .toolbar{
+    width:max-content;
+    max-width:calc(100vw - 12px);
+    padding:6px;
+    gap:4px;
+    overflow-x:auto;
+    scrollbar-width:none;
+  }
+  .toolbar::-webkit-scrollbar{
+    display:none;
+  }
+  .toolbar .control{
+    width:41px;
+    height:41px;
+    border-radius:11px;
+  }
+  .toolbar .exit{
+    width:46px;
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  .toolbarWrap,.toolbarHidden{
+    transition:none;
+  }
+}
