@@ -28,22 +28,26 @@ export async function POST(request) {
     const target = String(body.target || '').trim().slice(0, 120);
     const details = String(body.details || '').trim().slice(0, 500);
 
-    if (!ALLOWED.has(action) || !channel) {
+    if (!ALLOWED.has(action) || (!channel && action !== 'error')) {
       return Response.json({ error: 'Evento de auditoria inválido.' }, { status: 400 });
     }
 
-    const { data: channelRow, error: channelError } = await actor.admin
-      .from('channels')
-      .select('name,is_active')
-      .eq('name', channel)
-      .maybeSingle();
+    if (channel) {
+      const { data: channelRow, error: channelError } = await actor.admin
+        .from('channels')
+        .select('name,is_active')
+        .eq('name', channel)
+        .maybeSingle();
 
-    if (channelError) throw channelError;
-    if (!channelRow?.is_active) {
-      return Response.json({ error: 'Canal indisponível.' }, { status: 404 });
+      if (channelError) throw channelError;
+      if (!channelRow?.is_active) {
+        if (action !== 'error') {
+          return Response.json({ error: 'Canal indisponível.' }, { status: 404 });
+        }
+      }
     }
 
-    if (actor.type === 'guest' && actor.guest?.room_name !== channel) {
+    if (channel && actor.type === 'guest' && actor.guest?.room_name !== channel) {
       return Response.json({
         error: 'O convidado só pode registrar eventos da call atualmente autorizada.',
       }, { status: 403 });
