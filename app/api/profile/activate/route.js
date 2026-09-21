@@ -185,6 +185,7 @@ export async function POST(request) {
       actor: { id: actor.id, email: actor.email, username, role: actor.role },
       target: username,
       details: 'Conta ativada/configurada pelo próprio usuário via Clerk.',
+      request,
     });
 
     return Response.json({ success: true, profile });
