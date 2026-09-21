@@ -398,6 +398,62 @@ export default function ServidorPage() {
       setConnecting(false);
     }
   }, [channels, user?.type, user?.username, user?.identity]);
+
+  const handleCallReconnected = useCallback(async (liveKitRoomName) => {
+    if (user?.type !== 'guest') return;
+
+    try {
+      const response = await fetch('/api/guest/session', { cache: 'no-store' });
+      const session = await response.json();
+
+      if (!response.ok || !session.currentRoom) {
+        throw new Error(session.error || 'A sessão do convidado não pôde ser sincronizada após a reconexão.');
+      }
+
+      const serverRoom = String(session.currentRoom).trim();
+      const connectedRoom = String(liveKitRoomName || active?.name || '').trim();
+      if (!serverRoom) return;
+
+      if (serverRoom !== connectedRoom) {
+        const tokenResponse = await fetch(`/api/token?room=${encodeURIComponent(serverRoom)}`, {
+          cache: 'no-store',
+        });
+        const tokenJson = await tokenResponse.json();
+
+        if (!tokenResponse.ok || !tokenJson.token) {
+          throw new Error(tokenJson.error || 'Não foi possível obter um novo token para a call atual.');
+        }
+
+        await handleRoomMoved(serverRoom, tokenJson.token);
+        return;
+      }
+
+      const tokenResponse = await fetch(`/api/token?room=${encodeURIComponent(serverRoom)}`, {
+        cache: 'no-store',
+      });
+      const tokenJson = await tokenResponse.json();
+      if (tokenResponse.ok && tokenJson.token) setToken(tokenJson.token);
+    } catch (error) {
+      await fetch('/api/audit', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          action: 'room_reconnect_sync_failed',
+          channel: active?.name || liveKitRoomName || '',
+          target: user?.username || user?.identity || 'convidado',
+          details: error.message || 'Falha ao sincronizar a sala após reconexão.',
+        }),
+        keepalive: true,
+      }).catch(() => {});
+
+      pushToast({
+        type: 'error',
+        title: 'Reconexão',
+        message: error.message || 'Não foi possível confirmar a call atual após a reconexão.',
+      });
+    }
+  }, [active?.name, handleRoomMoved, pushToast, user?.identity, user?.type, user?.username]);
+
   async function moveSelectedParticipant() {
     if (!moveSelection || !moveTarget || movingParticipant || !cred || cred.type !== 'session') return;
     setMovingParticipant(true);
@@ -606,7 +662,7 @@ export default function ServidorPage() {
     <section className="main-area">
       <header className="topbar"><button className="icon-btn mobile-menu" onClick={() => setSidebarOpen(true)} aria-label="Abrir canais"><Icon name="menu" /></button><div className="topbar-channel">{active ? <><span className="hash">#</span><strong>{active.name}</strong><span className="topbar-sub">{active.description || 'Canal de voz e vídeo'}</span></> : <><span className="topbar-brand-mark" aria-hidden="true" /><strong>Área principal</strong><span className="topbar-sub">Selecione um canal para começar</span></>}</div><span className="topbar-spacer" /><div className="search-box"><Icon name="search" size={16} /><input ref={searchRef} className="input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar canais...  Ctrl+K" aria-label="Buscar canais" /></div><button className={`icon-btn topbar-alert ${unreadCount ? '' : 'empty'}`} onClick={() => { setNotificationsOpen(true); markNotificationsRead(); }} aria-label={`Notificações${unreadCount ? `, ${unreadCount} novas` : ''}`}><Icon name="bell" /></button><button className="icon-btn mobile-only" onClick={() => handleRightTab('participants', !rightOpen)} aria-label="Participantes"><Icon name="users" /></button><button className="icon-btn" onClick={() => handleRightTab('chat')} aria-label="Chat"><Icon name="chat" /></button><button className="icon-btn" onClick={() => setSettingsOpen(true)} aria-label="Configurações"><Icon name="settings" /></button></header>
       {connecting && <div className="call-loading"><Spinner label="Estabelecendo conexão segura..." /></div>}
-      {!active || !token ? <div className="main-content"><section className="call-area"><div className="call-empty"><div className="empty-card"><div className="empty-icon"><Icon name="phone" size={28} /></div><h2 style={{ margin: '0 0 8px' }}>Seu espaço no CPX</h2><p style={{ color: 'var(--muted)', lineHeight: 1.6, fontSize: 13 }}>{maintenance ? 'O servidor está em manutenção. Usuários sem permissão de administrador não podem iniciar novas chamadas neste momento.' : 'Escolha um canal na lateral para entrar na chamada. Você poderá conversar por texto, usar câmera, compartilhar a tela e controlar seu áudio.'}</p><div style={{ marginTop: 17, display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}><Badge tone="purple">Voz</Badge><Badge tone="purple">Vídeo</Badge><Badge tone="purple">Chat</Badge><Badge tone="green">Acesso controlado</Badge></div></div></div></section></div> : <RoomExperience token={token} serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} channel={active} user={user} rightTab={rightTab} rightPanelOpen={rightOpen} onRightTab={handleRightTab} messages={messages} messageText={messageText} setMessageText={setMessageText} onSendMessage={sendMessage} onToast={pushToast} onDisconnect={disconnect} onModerate={moderate} onCreateInvite={openCallInvite} onRoomMoved={handleRoomMoved} participantFilter={rightTab === 'participants' ? search : ''} />}
+      {!active || !token ? <div className="main-content"><section className="call-area"><div className="call-empty"><div className="empty-card"><div className="empty-icon"><Icon name="phone" size={28} /></div><h2 style={{ margin: '0 0 8px' }}>Seu espaço no CPX</h2><p style={{ color: 'var(--muted)', lineHeight: 1.6, fontSize: 13 }}>{maintenance ? 'O servidor está em manutenção. Usuários sem permissão de administrador não podem iniciar novas chamadas neste momento.' : 'Escolha um canal na lateral para entrar na chamada. Você poderá conversar por texto, usar câmera, compartilhar a tela e controlar seu áudio.'}</p><div style={{ marginTop: 17, display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}><Badge tone="purple">Voz</Badge><Badge tone="purple">Vídeo</Badge><Badge tone="purple">Chat</Badge><Badge tone="green">Acesso controlado</Badge></div></div></div></section></div> : <RoomExperience token={token} serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} channel={active} user={user} rightTab={rightTab} rightPanelOpen={rightOpen} onRightTab={handleRightTab} messages={messages} messageText={messageText} setMessageText={setMessageText} onSendMessage={sendMessage} onToast={pushToast} onDisconnect={disconnect} onModerate={moderate} onCreateInvite={openCallInvite} onRoomMoved={handleRoomMoved} onCallReconnected={handleCallReconnected} participantFilter={rightTab === 'participants' ? search : ''} />}
     </section>
 
     <Modal open={moveParticipantOpen} title="Mover participante" onClose={() => { if (!movingParticipant) { setMoveParticipantOpen(false); setMoveSelection(null); } }} width={480}>
