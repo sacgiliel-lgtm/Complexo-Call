@@ -344,7 +344,7 @@ function ConnectedCall({ channel, user, rightTab, rightPanelOpen, onRightTab, on
       reconnectAuditRef.current = false;
       auditCallEvent('call_reconnected', localParticipant?.identity, 'A conexão com o LiveKit foi restabelecida.');
       onToast?.({ type: 'success', title: 'Conexão restabelecida', message: 'A chamada foi reconectada com sucesso.' });
-      onCallReconnected?.();
+      onCallReconnected?.(room?.name || channel.name);
     };
     const handleDisconnected = () => {
       reconnectAuditRef.current = false;
