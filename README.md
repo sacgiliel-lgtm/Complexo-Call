@@ -4,7 +4,7 @@ Plataforma web de comunicação por voz e vídeo para a comunidade CPX, com cana
 
 O projeto usa **Next.js**, **Clerk**, **Supabase**, **LiveKit Cloud** e **Vercel**. A autenticação de membros foi migrada do Supabase Auth para o Clerk; o Supabase permanece responsável pelos dados da aplicação, enquanto o LiveKit continua responsável pela mídia em tempo real.
 
-> **Status desta documentação:** alinhada à branch `feature/clerk-auth-migration`.
+> **Status desta documentação:** alinhada à versão atual da branch `main` e ao deployment de produção.
 
 ---
 
@@ -181,7 +181,22 @@ O fluxo atual suporta:
 - atualização da sala atual do convidado antes da movimentação;
 - rollback da autorização do convidado caso o movimento falhe.
 
-### Moderação
+### Heartbeat de presença
+
+Membros autenticados enviam um heartbeat periódico para:
+
+```text
+POST /api/presence
+```
+
+O intervalo atual é de aproximadamente **45 segundos**.
+
+Além do intervalo periódico, o cliente atualiza a presença quando a aba volta a ficar visível e tenta marcar o usuário como `offline` no evento `pagehide`.
+
+O heartbeat é apenas um mecanismo de atualização; a presença de participantes realmente conectados a uma call continua sendo obtida do LiveKit.
+
+---
+## Moderação
 
 O sistema oferece ações de moderação em participantes conectados:
 
@@ -432,6 +447,31 @@ A autorização do token permite:
 
 ---
 
+## Reconexão automática do LiveKit
+
+A experiência da call trata perdas temporárias de conexão como interrupções recuperáveis.
+
+```text
+conexão cai
+   ↓
+LiveKit entra em estado de reconexão
+   ↓
+UI mostra "Reconectando..."
+   ↓
+SDK tenta restaurar a sessão automaticamente
+   ↓
+RoomEvent.Reconnected
+   ↓
+UI confirma a recuperação
+```
+
+A interface aguarda uma janela de tolerância de aproximadamente **12 segundos** antes de considerar que a chamada foi definitivamente encerrada por uma desconexão inesperada.
+
+Uma saída manual, como o botão **Sair** ou o atalho `Esc`, não passa por essa tolerância: a sessão é encerrada imediatamente.
+
+Eventos de reconexão e recuperação também podem ser registrados em `activity_logs` e no webhook do Discord.
+
+---
 ## Fluxo de convidado
 
 Convidados não precisam de uma conta Clerk.
@@ -734,7 +774,7 @@ Cria o cliente Supabase com a **Service Role Key** para operações internas do 
 
 | Rota | Método | Acesso | Função |
 |---|---|---|---|
-| `/api/token` | GET | Membro/convidado | Gera token LiveKit |
+| `/api/token` | GET | Membro/convidado | Gera token LiveKit; membros usam Clerk e convidados usam Guest Ticket |
 | `/api/validate-invite` | POST | Público | Valida convite e cria sessão de convidado |
 | `/api/guest/session` | GET | Convidado | Consulta sessão atual |
 | `/api/guest/logout` | POST | Convidado | Revoga sessão |
@@ -744,7 +784,7 @@ Cria o cliente Supabase com a **Service Role Key** para operações internas do 
 | `/api/presence` | POST | Membro | Atualiza presença |
 | `/api/profile` | GET/PATCH | Membro | Consulta/atualiza perfil |
 | `/api/profile/activate` | POST | Ativação Clerk | Finaliza ativação |
-| `/api/profile/password` | POST | Membro | Operações relacionadas à senha |
+| `/api/profile/password` | POST | Membro | Altera a senha do usuário autenticado no Clerk |
 | `/api/profile/sync` | GET | Membro | Força sincronização Clerk ↔ perfil |
 | `/api/moderation` | POST | Membro/admin | Silencia/desconecta participante |
 | `/api/call-invites` | POST | Membro/admin | Cria convite temporário para uma call |
@@ -898,6 +938,26 @@ Migração da identidade para Clerk:
 - cria índice único de Clerk;
 - cria índice de e-mail pendente;
 - ajusta a política de leitura do perfil.
+
+### 8. `20260921_observability.sql`
+
+Adiciona metadados de observabilidade à tabela `activity_logs`:
+
+- `ip_address`;
+- `user_agent`;
+- `request_id`;
+- `source`.
+
+Também cria índices para investigação por request e origem.
+
+### 9. `20260921_clerk_auth_cleanup.sql`
+
+Limpeza final da migração:
+
+- remove o índice legado de `must_change_password`;
+- remove a coluna `must_change_password` do perfil.
+
+O arquivo `20260918_cpx_passwords.sql` permanece no repositório apenas como **histórico de migração**; a aplicação atual não depende dessa flag.
 
 ---
 
@@ -1258,7 +1318,21 @@ Isso evita acesso direto ao ticket através de JavaScript no navegador.
 
 As tabelas sensíveis permanecem protegidas pelo Supabase RLS.
 
-### Rate limiting
+#### Metadados de auditoria
+
+Os registros de `activity_logs` podem armazenar contexto adicional da requisição:
+
+```text
+IP
+User-Agent
+Request ID
+Rota/origem
+```
+
+Isso facilita correlacionar um evento do Complexo Call com logs da Vercel ou de outro componente sem expor credenciais.
+
+---
+## Rate limiting
 
 O endpoint de token utiliza rate limiting antes de emitir tokens LiveKit.
 
@@ -1476,6 +1550,36 @@ Entre as funções estão:
 
 ---
 
+## Health check
+
+A aplicação possui:
+
+```text
+GET /api/health
+```
+
+O endpoint verifica:
+
+- aplicação;
+- configuração do Clerk;
+- acesso ao PostgreSQL/Supabase;
+- acesso administrativo ao LiveKit;
+- configuração opcional do Discord.
+
+Exemplo de resposta saudável:
+
+```json
+{
+  "status": "ok",
+  "ok": true
+}
+```
+
+Quando um componente obrigatório não responde, a rota retorna HTTP `503` e informa um estado `degraded`.
+
+O endpoint não expõe segredos nem credenciais dos serviços.
+
+---
 ## Manutenção e troubleshooting
 
 ### Build falhando
@@ -1584,6 +1688,20 @@ A migração atual deve usar Clerk para autenticação de membros.
 
 ---
 
+## Limpeza de código legado
+
+A migração atual removeu os caminhos que já não possuem função no fluxo de produção:
+
+- rota `/api/resolve-login`;
+- resolução artificial por `externalId`;
+- fallback de autenticação por `Authorization: Bearer` com token Supabase;
+- consulta de usuários legados do Supabase Auth durante a sincronização Clerk;
+- lógica de primeiro acesso baseada em `must_change_password`;
+- uso de `must_change_password` no código ativo.
+
+O banco recebe uma migração separada para remover a coluna legada sem reescrever o histórico das migrações antigas.
+
+---
 ## Decisões e observações de arquitetura
 
 ### Clerk substituiu Supabase Auth
@@ -1636,6 +1754,44 @@ Isso permite trocar novamente o provedor de autenticação sem precisar transfor
 
 ---
 
+## Testes automatizados
+
+O projeto possui uma suíte leve de testes com o runner nativo do Node.js.
+
+### Executar testes
+
+```bash
+npm test
+```
+
+### Modo watch
+
+```bash
+npm run test:watch
+```
+
+### Verificação completa
+
+```bash
+npm run verify
+```
+
+O `npm run build` executa automaticamente `npm test` antes da compilação através do script `prebuild`.
+
+Os testes cobrem principalmente:
+
+- criação e validação de tickets HMAC de convidados;
+- rejeição de tickets adulterados/expirados;
+- ausência do fallback Supabase Auth na emissão de token LiveKit;
+- remoção dos caminhos legados do Clerk;
+- regras críticas de movimentação de participantes;
+- proteção contra movimentar/moderar a própria sessão;
+- presença por heartbeat;
+- existência do health check;
+- proteção de reconexão LiveKit;
+- estrutura de auditoria.
+
+---
 ## Scripts
 
 ### Desenvolvimento
