@@ -9,6 +9,7 @@ import { RoomExperience } from '../../components/RoomExperience';
 import '@livekit/components-styles';
 
 const NOTIFICATION_KEY = 'cpx-notifications';
+const PRESENCE_HEARTBEAT_MS = 45000;
 
 function channelsEqual(current, next) {
   if (current.length !== next.length) return false;
@@ -203,11 +204,42 @@ export default function ServidorPage() {
 
   useEffect(() => {
     if (!cred || cred.type !== 'session') return;
-    fetch('/api/presence', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: presence }),
-    }).catch(() => {});
+
+    let cancelled = false;
+
+    async function heartbeat(status = presence, keepalive = false) {
+      if (cancelled) return;
+      try {
+        await fetch('/api/presence', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Presence-Heartbeat': '1',
+          },
+          body: JSON.stringify({ status }),
+          cache: 'no-store',
+          keepalive,
+        });
+      } catch {}
+    }
+
+    heartbeat();
+    const interval = window.setInterval(() => heartbeat(), PRESENCE_HEARTBEAT_MS);
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') heartbeat();
+    };
+    const onPageHide = () => heartbeat('offline', true);
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('pagehide', onPageHide);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('pagehide', onPageHide);
+    };
   }, [cred, presence]);
 
   useEffect(() => {
@@ -246,7 +278,7 @@ export default function ServidorPage() {
 
   const roomMoveGuardRef = useRef({ room: '', at: 0 });
 
-  const handleRoomMoved = useCallback(async (roomName) => {
+  const handleRoomMoved = useCallback(async (roomName, movedToken) => {
     const nextRoom = String(roomName || '').trim();
     if (!nextRoom) return;
 
@@ -254,51 +286,121 @@ export default function ServidorPage() {
     if (roomMoveGuardRef.current.room === nextRoom && now - roomMoveGuardRef.current.at < 2500) return;
     roomMoveGuardRef.current = { room: nextRoom, at: now };
 
-    let targetChannel = channels.find((channel) => channel.name === nextRoom);
+    setConnecting(true);
 
-    // Para convidados, /api/channels retorna a call atualmente autorizada.
-    // O backend atualiza essa autorização antes de pedir o move ao LiveKit.
-    if (!targetChannel || user?.type === 'guest') {
-      const headers = {};
+    try {
+      let targetChannel = channels.find((channel) => channel.name === nextRoom);
       const attempts = [0, 250, 750, 1500];
 
       for (const delay of attempts) {
         if (delay) await new Promise((resolve) => window.setTimeout(resolve, delay));
+
         try {
-          const response = await fetch('/api/channels', { headers, cache: 'no-store' });
+          const response = await fetch('/api/channels', { cache: 'no-store' });
           const json = await response.json();
           if (!response.ok) continue;
 
           const nextChannels = json.channels || [];
-          setChannels(nextChannels);
+          setChannels((current) => channelsEqual(current, nextChannels) ? current : nextChannels);
           targetChannel = nextChannels.find((channel) => channel.name === nextRoom);
+
           if (targetChannel) break;
         } catch {}
       }
-    }
 
-    if (!targetChannel) {
+      if (!targetChannel) {
+        await fetch('/api/audit', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            action: 'room_moved_sync_failed',
+            channel: nextRoom,
+            target: user?.username || user?.identity || 'participante',
+            details: 'LiveKit informou a nova sala, mas a API de canais não retornou o destino.',
+          }),
+          keepalive: true,
+        }).catch(() => {});
+
+        throw new Error('A call de destino foi recebida pelo LiveKit, mas ainda não está disponível para sincronização.');
+      }
+
+      if (user?.type === 'guest') {
+        const guestSessionResponse = await fetch('/api/guest/session', { cache: 'no-store' });
+        const guestSession = await guestSessionResponse.json();
+        if (!guestSessionResponse.ok || guestSession.currentRoom !== nextRoom) {
+          throw new Error('A sessão do convidado ainda não confirmou a nova call. Tente novamente em alguns segundos.');
+        }
+      }
+
+      if (typeof movedToken === 'string' && movedToken.trim()) {
+        setToken(movedToken);
+      }
+
+      setActive(targetChannel);
+      setMessages([]);
+      setPendingCallName('');
+      if (window.history?.replaceState) window.history.replaceState({}, '', '/servidor');
+
+      const [messagesResult, presenceResult] = await Promise.allSettled([
+        fetch('/api/messages?channel=' + encodeURIComponent(targetChannel.id), { cache: 'no-store' }).then(async (response) => {
+          const json = await response.json();
+          if (!response.ok) throw new Error(json.error || 'Não foi possível sincronizar o chat.');
+          return json.messages || [];
+        }),
+        fetch('/api/channels/presence', { cache: 'no-store' }).then(async (response) => {
+          const json = await response.json();
+          if (!response.ok) throw new Error(json.error || 'Não foi possível sincronizar a presença.');
+          return json.participants || {};
+        }),
+      ]);
+
+      if (messagesResult.status === 'fulfilled') {
+        setMessages(messagesResult.value);
+      }
+
+      if (presenceResult.status === 'fulfilled') {
+        setChannelParticipants(presenceResult.value);
+      }
+
+      const syncProblems = [messagesResult, presenceResult]
+        .filter((result) => result.status === 'rejected')
+        .map((result) => result.reason?.message || 'sincronização secundária indisponível');
+
+      if (syncProblems.length) {
+        pushToast({
+          type: 'info',
+          title: 'Call sincronizada',
+          message: 'A conexão foi transferida, mas alguns dados secundários ainda estão sendo atualizados.',
+        });
+      } else {
+        pushToast({
+          type: 'success',
+          title: 'Você foi transferido',
+          message: 'Agora você está em #' + targetChannel.name + '.',
+        });
+      }
+
+      await fetch('/api/audit', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          action: 'room_moved_synced',
+          channel: targetChannel.name,
+          target: user?.username || user?.identity || 'participante',
+          details: 'Interface, autorização da sala, token e dados auxiliares sincronizados após movimentação pelo LiveKit.',
+        }),
+        keepalive: true,
+      }).catch(() => {});
+    } catch (error) {
       pushToast({
         type: 'error',
         title: 'Transferência',
-        message: `A call #${nextRoom} foi recebida pelo LiveKit, mas os dados da sala ainda não foram sincronizados. Atualize a página para concluir a sincronização.`,
+        message: error.message || 'Não foi possível sincronizar a nova call.',
       });
-      return;
+    } finally {
+      setConnecting(false);
     }
-
-    setActive(targetChannel);
-    setMessages([]);
-    setPendingCallName('');
-    setConnecting(false);
-    if (window.history?.replaceState) window.history.replaceState({}, '', '/servidor');
-
-    pushToast({
-      type: 'success',
-      title: 'Você foi transferido',
-      message: `Agora você está em #${targetChannel.name}.`,
-    });
-  }, [channels, cred, user?.type]);
-
+  }, [channels, user?.type, user?.username, user?.identity]);
   async function moveSelectedParticipant() {
     if (!moveSelection || !moveTarget || movingParticipant || !cred || cred.type !== 'session') return;
     setMovingParticipant(true);
