@@ -21,7 +21,7 @@ export async function POST(request) {
     const client = await clerkClient();
     await client.users.updateUser(actor.clerkUserId, { password: newPassword });
 
-    await logDiscordEvent({ action: 'password_changed', actor, target: actor.username || actor.id, details: 'Senha alterada via Clerk.' });
+    await logDiscordEvent({ action: 'password_changed', actor, target: actor.username || actor.id, details: 'Senha alterada via Clerk.', request });
     return Response.json({ success: true });
   } catch (error) {
     console.error('Password API:', error);
