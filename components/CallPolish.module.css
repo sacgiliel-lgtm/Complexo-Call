@@ -486,3 +486,54 @@
     transition:none;
   }
 }
+
+/* Complexo-Call meeting screen redesign — visual direction from the approved concept. */
+.root,.connected{background:#030206;color:#f6f1f8}
+.connected{background:radial-gradient(circle at 45% -15%,rgba(156,92,255,.14),transparent 38%),radial-gradient(circle at 100% 100%,rgba(237,25,114,.06),transparent 30%),#030206}
+.callArea{background:linear-gradient(180deg,rgba(8,6,12,.96),rgba(3,2,6,.99))}
+.topbar{height:72px;padding:10px 20px;border-bottom:1px solid rgba(255,255,255,.07);background:rgba(4,3,8,.74);backdrop-filter:blur(24px)}
+.topbarLeft{gap:12px}.topbarBrandLogo{width:36px;height:36px;filter:drop-shadow(0 0 14px rgba(156,92,255,.28))}
+.channelIcon{display:none}.topbarLeft strong{font-size:13px;letter-spacing:-.015em}.topbarLeft span{margin-top:4px;color:#786e80;font-size:8px}
+.topbarCenter{gap:8px}.livePill{padding:6px 10px;border-color:rgba(54,216,137,.2);background:rgba(54,216,137,.055);color:#a8e8c3}.duration{color:#8b8093;font-size:9px}
+.topbarRight{gap:8px}.qualityPill,.participantsQuickButton,.inviteButton{height:38px;border-radius:12px}
+.qualityPill{padding:0 12px;border-color:rgba(255,255,255,.085);background:rgba(255,255,255,.028)}
+.participantsQuickButton{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:0 12px;border:1px solid rgba(156,92,255,.22);background:rgba(156,92,255,.08);color:#e4dbef;font-size:9px;font-weight:850;cursor:pointer;white-space:nowrap}
+.participantsQuickButton:hover{background:rgba(156,92,255,.14);border-color:rgba(156,92,255,.42)}
+.participantsQuickButton b{min-width:19px;height:19px;display:inline-grid;place-items:center;padding:0 5px;border-radius:7px;background:rgba(255,255,255,.07);color:#cbb6ff;font-size:8px}
+.inviteButton{height:38px}.chatHeaderButton{width:38px!important;height:38px!important;border-radius:12px!important;border:1px solid rgba(255,255,255,.07)!important;background:rgba(255,255,255,.028)!important}
+.stage{padding:14px;background:radial-gradient(circle at 50% 34%,rgba(156,92,255,.065),transparent 34%),radial-gradient(circle at 8% 100%,rgba(54,216,137,.035),transparent 28%),#040307}
+.smartStage{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) 132px;gap:12px}.spotlight{min-height:0}.spotlight>.card{border-radius:20px;border-color:rgba(255,255,255,.10);box-shadow:0 30px 90px rgba(0,0,0,.48),0 0 65px rgba(156,92,255,.055)}.spotlight>.card:hover{transform:none}
+.rail{flex-direction:row;gap:10px;overflow-x:auto;overflow-y:hidden;padding:0 1px 3px;scrollbar-width:none}.rail::-webkit-scrollbar{display:none}
+.compact{width:calc((100% - 30px)/4);min-width:175px;height:100%;min-height:0;border-radius:14px}.compact .cardAvatar :global(.avatar-xl){transform:scale(.72)}
+.card{border-color:rgba(255,255,255,.085);background:#0a080d;box-shadow:0 20px 60px rgba(0,0,0,.3)}.cardMedia{background:radial-gradient(circle at 50% 34%,rgba(156,92,255,.11),transparent 45%),#0a080d}.local{border-color:rgba(156,92,255,.32)}
+.speaking{border-color:rgba(54,216,137,.88);box-shadow:0 0 0 1px rgba(54,216,137,.18),0 0 28px rgba(54,216,137,.12),0 22px 60px rgba(0,0,0,.4)}
+.cardBottom{padding:12px}.signal{background:rgba(5,4,8,.58);border:1px solid rgba(255,255,255,.06)}
+.stageInfo{left:16px;bottom:18px;border-color:rgba(255,255,255,.06);background:rgba(6,5,10,.58);box-shadow:0 10px 32px rgba(0,0,0,.25)}.shortcuts{display:none}
+.toolbarWrap{bottom:20px;width:auto}.toolbar{min-height:68px;padding:7px;gap:5px;border:1px solid rgba(255,255,255,.12);border-radius:999px;background:linear-gradient(180deg,rgba(27,21,35,.82),rgba(8,6,12,.9));backdrop-filter:blur(24px);box-shadow:0 22px 70px rgba(0,0,0,.48),0 0 55px rgba(156,92,255,.07),inset 0 1px 0 rgba(255,255,255,.05)}
+.toolbar:before{left:20%;right:20%;opacity:.5}.toolbar .control{width:50px;height:50px;border-radius:50%;border-color:rgba(255,255,255,.065);background:rgba(255,255,255,.032)}
+.toolbar .control:hover{transform:translateY(-2px);background:rgba(156,92,255,.11);border-color:rgba(156,92,255,.3);box-shadow:0 9px 24px rgba(0,0,0,.18)}.toolbar .control span{top:-30px}
+.toolbar .exit{width:52px;margin-left:3px;background:linear-gradient(135deg,#ff4c83,#e51b5d);border-color:rgba(255,255,255,.12);color:#fff;box-shadow:0 8px 24px rgba(237,25,114,.22)}.toolbar .exit:hover{background:linear-gradient(135deg,#ff6191,#ed1972);border-color:rgba(255,255,255,.2)}
+.toolbarCount{position:absolute;right:-2px;top:-2px;min-width:17px;height:17px;display:grid;place-items:center;padding:0 4px;border-radius:999px;background:#ed1972;color:#fff;border:2px solid #0b0810;font-size:7px;font-weight:900}
+.chatAttention{border-color:rgba(237,25,114,.28)!important;background:rgba(237,25,114,.07)!important}
+.toolbar>button[title="Modo foco"]{order:8}.toolbar>.menuWrap:nth-of-type(1){order:7}.toolbar>.menuWrap:nth-of-type(2){order:6}.toolbar>.exit{order:9}.toolbar>button:nth-of-type(1){order:1}.toolbar>button:nth-of-type(2){order:2}.toolbar>button:nth-of-type(3){order:3}.toolbar>button:nth-of-type(4){order:4}.toolbar>button:nth-of-type(5){order:5}
+.moreMenu,.reactionMenu{border-color:rgba(255,255,255,.09);background:rgba(14,10,19,.96);backdrop-filter:blur(20px);box-shadow:0 28px 80px rgba(0,0,0,.56)}
+.moreAction{width:100%;min-height:36px;display:flex;align-items:center;gap:8px;padding:0 9px;border:0;border-radius:9px;background:transparent;color:#e2dbe6;font-size:9px;font-weight:800;text-align:left;cursor:pointer}.moreAction:hover{background:rgba(156,92,255,.10)}
+.panel{width:356px;min-width:330px;background:rgba(7,5,11,.9);border-left:1px solid rgba(255,255,255,.07);backdrop-filter:blur(18px)}
+.panelTabs{height:58px;padding:6px 48px 6px 6px}.panelTabs>button:not(:global(.icon-btn)){height:45px;border-radius:11px;font-size:9px}.activeTab{background:linear-gradient(180deg,rgba(156,92,255,.15),rgba(156,92,255,.07))!important;color:#fff!important;box-shadow:inset 0 -2px 0 rgba(156,92,255,.85)}
+.panelTitle{padding:10px 9px 7px;color:#716679}.participantRow{margin:4px 0;padding:10px;border-color:transparent;border-radius:12px}.participantRow:hover{background:rgba(255,255,255,.035);border-color:rgba(255,255,255,.055)}.participantInfo strong{font-size:10px}.participantInfo span{color:#776d7f}
+.chatSearch{padding:10px}.chatMessage{padding:9px 10px;border-radius:11px}.chatMessage:hover{background:rgba(156,92,255,.045)}.composer{padding:10px}.composer .input{height:38px;border-radius:11px}.composer .primary-btn{width:40px;border-radius:11px}
+.popover{top:46px;background:rgba(14,10,19,.98);border-color:rgba(255,255,255,.09);backdrop-filter:blur(18px)}
+@media(max-width:1050px){.smartStage{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) 118px}.panel{width:316px;min-width:300px}}
+@media(max-width:820px){
+  .topbar{height:60px;padding:7px 10px}.topbarLeft{gap:8px}.topbarBrandLogo{width:31px;height:31px}.topbarLeft strong{font-size:11px}.topbarLeft span{display:none}.topbarRight{gap:5px}
+  .participantsQuickButton span,.inviteButton span{display:none}.participantsQuickButton,.inviteButton{width:38px;padding:0}
+  .qualityPill{width:38px;padding:0;justify-content:center}.qualityPill>span:last-child{display:none}
+  .stage{padding:8px}.smartStage{display:flex;flex-direction:column;gap:9px}.spotlight{flex:1}.rail{height:104px;flex:none}.compact{width:148px;min-width:148px;height:100%}
+  .toolbarWrap{bottom:9px;width:calc(100% - 14px)}.toolbar{width:100%;min-height:0;justify-content:center;border-radius:18px}.toolbar .control{width:43px;height:43px;border-radius:12px}.toolbar .exit{width:46px}
+  .panel{position:absolute;right:0;top:0;bottom:0;width:min(356px,89vw);min-width:0;box-shadow:-30px 0 80px rgba(0,0,0,.46)}
+}
+@media(max-width:520px){
+  .toolbar{overflow-x:auto;justify-content:flex-start;scrollbar-width:none}.toolbar::-webkit-scrollbar{display:none}.toolbar .control{flex:none;width:41px;height:41px}.toolbar .exit{flex:none;width:45px}
+  .panel{width:92vw}
+}
+@media(prefers-reduced-motion:reduce){.toolbar .control{transition:none}}
