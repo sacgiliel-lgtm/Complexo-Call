@@ -74,7 +74,7 @@ test('server sends the active room when changing the display name', () => {
 
   assert.match(page, /roomName: active\?\.name \|\| ''/);
   assert.match(page, /setMessages\(\(current\) => current\.map/);
-  assert.match(page, /message\.sender_name: nextUsername/);
+  assert.match(page, /sender_name: nextUsername/);
 });
   
 test('health endpoint exists and presence heartbeat is configured', () => {
