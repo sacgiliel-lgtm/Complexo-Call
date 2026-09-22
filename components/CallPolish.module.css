@@ -693,3 +693,45 @@
   .lobbyCard>p,.endedCard>p{font-size:11px}
   .helper{font-size:11px}
 }
+
+/* Legibility guardrails: no essential UI copy should fall below a readable size. */
+.topbarLeft span{font-size:10px}
+.topbarCenter .duration,.duration{font-size:11px}
+.qualityPill{font-size:10px}
+.popoverTitle{font-size:10px!important;line-height:1.35}
+.qualityMain strong{font-size:12px}.qualityMain span:last-child{font-size:10px}
+.qualityRow{font-size:10px}.qualityHint{font-size:9.5px!important}
+.stageInfo{font-size:10px}.screenLabel{font-size:10px;padding:8px 10px}.screenLabel span{font-size:9px}
+.screenFocusLabel{font-size:10px;padding:8px 11px}
+.screenControlButton{font-size:10px}
+.nameWrap>span{font-size:12px}.nameWrap small{font-size:9px}
+.compact .nameWrap>span{font-size:11px}.compact .nameWrap small{font-size:9px}
+.speakingLabel{font-size:9px}
+.panelTitle{font-size:9px;letter-spacing:.1em}
+.panelTabs>button:not(:global(.icon-btn)){font-size:10px}
+.unreadTab,.panelTitleCount{font-size:9px}
+.participantInfo strong{font-size:11px}.participantInfo span{font-size:9.5px}
+.participantTools{font-size:9px}
+.chatSearch input.input{font-size:11px}
+.chatBody strong{font-size:10px}.chatBody span{font-size:9px}.chatBody p{font-size:10px;line-height:1.5}
+.newMessagesButton{font-size:10px!important}.chatError{font-size:9px}.chatError button{font-size:9px}
+.composer .input{font-size:11px}
+.toolbar .control span{font-size:9px}
+.moreMenu,.reactionMenu{font-size:10px}.menuTitle{font-size:10px}.deviceItem{font-size:10px;line-height:1.45}
+.kicker{font-size:9px}.lobbyCard>p,.endedCard>p{font-size:11px;line-height:1.6}
+.previewName strong{font-size:11px}.previewName span{font-size:9px}.previewLive{font-size:9px}
+.choiceCopy b{font-size:11px}.choiceCopy small{font-size:9px}.choiceState{font-size:9px}
+.deviceSelectGrid label>span{font-size:9px}
+.micMeter{font-size:10px}
+.field label{font-size:12px}.helper{font-size:11px;line-height:1.45}
+.empty-state h3{font-size:15px}.empty-state p{font-size:12px;line-height:1.55}
+.badge{font-size:10px}.screenBackButton{font-size:10px}
+.volumePopup>div:first-child{font-size:10px}.volumeScale{font-size:9px}
+.panelCloseButton{font-size:10px}
+@media(max-width:820px){
+  .topbarLeft strong{font-size:12px}.topbarLeft span{font-size:9px}
+  .duration{font-size:10px}.qualityPill{font-size:9px}
+  .screenLabel{font-size:9px}.screenFocusLabel{font-size:9px}
+  .participantInfo strong{font-size:10.5px}.participantInfo span{font-size:9px}
+  .chatBody p{font-size:10px}.helper{font-size:10px}
+}
