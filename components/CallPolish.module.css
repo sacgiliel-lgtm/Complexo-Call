@@ -735,3 +735,15 @@
   .participantInfo strong{font-size:10.5px}.participantInfo span{font-size:9px}
   .chatBody p{font-size:10px}.helper{font-size:10px}
 }
+
+
+/* Final readability pass for remaining compact labels and status copy. */
+.menuHint{font-size:9.5px;line-height:1.45}
+.lobbyTip{font-size:9.5px;line-height:1.45}
+.emptyCardHint{font-size:9.5px;line-height:1.45}
+.previewError{font-size:9.5px;line-height:1.45}
+.brand,.endedBrand{font-size:10px}
+select{font-size:10px}
+@media(max-width:820px){
+  .menuHint,.lobbyTip,.emptyCardHint,.previewError{font-size:9px}
+}
