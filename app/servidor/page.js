@@ -607,8 +607,8 @@ export default function ServidorPage() {
       type: 'success',
       title: 'Perfil atualizado',
       message: json.livekitUpdated
-        ? 'Seu nome foi atualizado no perfil, na chamada e no chat.'
-        : 'Seu nome foi atualizado no perfil e no chat.',
+        ? 'Seu nome de usuário foi atualizado.'
+        : 'Seu nome de usuário foi atualizado.',
     });
   }
 
