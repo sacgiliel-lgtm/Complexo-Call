@@ -318,14 +318,14 @@ export default function ServidorPage() {
           keepalive: true,
         }).catch(() => {});
 
-        throw new Error('A call de destino foi recebida pelo LiveKit, mas ainda não está disponível para sincronização.');
+        throw new Error('A chamada de destino foi recebida pelo LiveKit, mas ainda não está disponível para sincronização.');
       }
 
       if (user?.type === 'guest') {
         const guestSessionResponse = await fetch('/api/guest/session', { cache: 'no-store' });
         const guestSession = await guestSessionResponse.json();
         if (!guestSessionResponse.ok || guestSession.currentRoom !== nextRoom) {
-          throw new Error('A sessão do convidado ainda não confirmou a nova call. Tente novamente em alguns segundos.');
+          throw new Error('A sessão do convidado ainda não confirmou a nova chamada. Tente novamente em alguns segundos.');
         }
       }
 
@@ -366,7 +366,7 @@ export default function ServidorPage() {
       if (syncProblems.length) {
         pushToast({
           type: 'info',
-          title: 'Call sincronizada',
+          title: 'Chamada sincronizada',
           message: 'Você já está na nova chamada. Alguns detalhes ainda estão sendo atualizados.',
         });
       } else {
@@ -392,7 +392,7 @@ export default function ServidorPage() {
       pushToast({
         type: 'error',
         title: 'Transferência',
-        message: error.message || 'Não foi possível sincronizar a nova call.',
+        message: error.message || 'Não foi possível sincronizar a nova chamada.',
       });
     } finally {
       setConnecting(false);
@@ -421,7 +421,7 @@ export default function ServidorPage() {
         const tokenJson = await tokenResponse.json();
 
         if (!tokenResponse.ok || !tokenJson.token) {
-          throw new Error(tokenJson.error || 'Não foi possível obter um novo token para a call atual.');
+          throw new Error(tokenJson.error || 'Não foi possível obter um novo token para a chamada atual.');
         }
 
         await handleRoomMoved(serverRoom, tokenJson.token);
@@ -446,7 +446,7 @@ export default function ServidorPage() {
       pushToast({
         type: 'error',
         title: 'Reconexão',
-        message: error.message || 'Não foi possível confirmar a call atual após a reconexão.',
+        message: error.message || 'Não foi possível confirmar a chamada atual após a reconexão.',
       });
     }
   }, [active?.name, handleRoomMoved, pushToast, user?.identity, user?.type, user?.username]);
@@ -648,7 +648,7 @@ export default function ServidorPage() {
                 {liveMembers.length > 0 && <span className="channel-count">{liveMembers.length}</span>}
               </button>
               {liveMembers.length > 0 && <div className="channel-members" aria-label={`Participantes em #${channel.name}`}>
-                {liveMembers.slice(0, 30).map((participant) => <button key={participant.identity} type="button" className="channel-member" onClick={() => openMoveParticipant(participant, channel.name)} disabled={user?.type !== 'member'} title={user?.type === 'member' ? `Mover ${participant.name} para outra call` : participant.name}>
+                {liveMembers.slice(0, 30).map((participant) => <button key={participant.identity} type="button" className="channel-member" onClick={() => openMoveParticipant(participant, channel.name)} disabled={user?.type !== 'member'} title={user?.type === 'member' ? `Mover ${participant.name} para outra chamada` : participant.name}>
                   <span className="member-rail" />
                   <Avatar name={participant.name} size="sm" status="online" />
                   <span className="channel-member-name">{participant.name}{participant.identity === user?.identity ? ' (você)' : ''}</span>
