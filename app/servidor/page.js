@@ -249,7 +249,7 @@ export default function ServidorPage() {
   }, []);
 
   async function connect(channel) {
-    if (maintenance && user?.role !== 'admin') return pushToast({ type: 'error', title: 'Servidor em manutenção', message: 'Aguarde até que a manutenção seja encerrada.' });
+    if (maintenance && user?.role !== 'admin') return pushToast({ type: 'error', title: 'Servidor em manutenção', message: 'Aguarde até que a manutenção seja concluída.' });
     if (active?.id === channel.id && token) return;
     setConnecting(true); setActive(channel); setToken(''); setMessages([]); setRightOpen(false);
     try {
@@ -267,7 +267,7 @@ export default function ServidorPage() {
     if (user?.type !== 'member') return;
     if (!participant?.identity || participant.identity === user.identity) return pushToast({ type: 'info', title: 'Movimentação', message: 'Selecione outro participante para movimentar.' });
     const destinations = channels.filter((channel) => channel.name !== sourceRoom);
-    if (!destinations.length) return pushToast({ type: 'info', title: 'Movimentação', message: 'Não existe outra call ativa para este participante.' });
+    if (!destinations.length) return pushToast({ type: 'info', title: 'Movimentação', message: 'Não há outra chamada ativa para este participante.' });
     setMoveSelection({ identity: participant.identity, name: participant.name || participant.identity, sourceRoom });
     setMoveTarget(destinations[0].name);
     setMoveParticipantOpen(true);
@@ -367,7 +367,7 @@ export default function ServidorPage() {
         pushToast({
           type: 'info',
           title: 'Call sincronizada',
-          message: 'A conexão foi transferida, mas alguns dados secundários ainda estão sendo atualizados.',
+          message: 'Você já está na nova chamada. Alguns detalhes ainda estão sendo atualizados.',
         });
       } else {
         pushToast({
@@ -566,7 +566,7 @@ export default function ServidorPage() {
     const headers = { 'Content-Type': 'application/json' };
     const response = await fetch('/api/messages', { method: 'POST', headers, body: JSON.stringify({ channelId: active.id, content: messageText.trim() }) }); const json = await response.json();
     if (!response.ok) {
-      pushToast({ type: 'error', title: 'Mensagem', message: json.error || 'Não foi possível enviar.' });
+      pushToast({ type: 'error', title: 'Mensagem', message: json.error || 'Não foi possível enviar a mensagem.' });
       return false;
     }
     setMessageText(''); setMessages((current) => current.some((item) => item.id === json.message.id) ? current : [...current, json.message]);
@@ -574,7 +574,7 @@ export default function ServidorPage() {
   }
   async function moderate(room, identity, action) {
     const response = await fetch('/api/moderation', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ room, identity, action }) }); const json = await response.json();
-    if (!response.ok) return pushToast({ type: 'error', title: 'Moderação', message: json.error || 'Operação não concluída.' });
+    if (!response.ok) return pushToast({ type: 'error', title: 'Moderação', message: json.error || 'Não foi possível concluir a ação.' });
     pushToast({ type: 'success', title: 'Moderação aplicada', message: action === 'disconnect' ? `${identity.replace(/^guest:/, '')} foi desconectado.` : 'Microfone silenciado.' });
   }
 
@@ -583,7 +583,7 @@ export default function ServidorPage() {
     const name = profileName.trim();
     const headers = { 'Content-Type': 'application/json' };
     const response = await fetch('/api/profile', { method: 'PATCH', headers, body: JSON.stringify({ username: name }) }); const json = await response.json();
-    if (!response.ok) return pushToast({ type: 'error', title: 'Perfil', message: json.error || 'Não foi possível atualizar.' });
+    if (!response.ok) return pushToast({ type: 'error', title: 'Perfil', message: json.error || 'Não foi possível atualizar o perfil.' });
     setUser((current) => ({ ...current, username: json.profile.username })); setProfileEditorOpen(false); pushToast({ type: 'success', title: 'Perfil atualizado', message: 'Seu nome foi alterado com sucesso.' });
   }
 
@@ -668,7 +668,7 @@ export default function ServidorPage() {
     </aside>
 
     <section className="main-area">
-      <header className="topbar"><button className="icon-btn mobile-menu" onClick={() => setSidebarOpen(true)} aria-label="Abrir canais"><Icon name="menu" /></button><div className="topbar-channel">{active ? <><span className="hash">#</span><strong>{active.name}</strong><span className="topbar-sub">{active.description || 'Canal de voz e vídeo'}</span></> : <><span className="topbar-brand-mark" aria-hidden="true" /><strong>Área principal</strong><span className="topbar-sub">Selecione um canal para começar</span></>}</div><span className="topbar-spacer" /><div className="search-box"><Icon name="search" size={16} /><input ref={searchRef} className="input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar canais...  Ctrl+K" aria-label="Buscar canais" /></div><button className={`icon-btn topbar-alert ${unreadCount ? '' : 'empty'}`} onClick={() => { setNotificationsOpen(true); markNotificationsRead(); }} aria-label={`Notificações${unreadCount ? `, ${unreadCount} novas` : ''}`}><Icon name="bell" /></button><button className="icon-btn mobile-only" onClick={() => handleRightTab('participants', !rightOpen)} aria-label="Participantes"><Icon name="users" /></button><button className="icon-btn" onClick={() => handleRightTab('chat')} aria-label="Chat"><Icon name="chat" /></button><button className="icon-btn" onClick={() => setSettingsOpen(true)} aria-label="Configurações"><Icon name="settings" /></button></header>
+      <header className="topbar"><button className="icon-btn mobile-menu" onClick={() => setSidebarOpen(true)} aria-label="Abrir canais"><Icon name="menu" /></button><div className="topbar-channel">{active ? <><span className="hash">#</span><strong>{active.name}</strong><span className="topbar-sub">{active.description || 'Canal de voz e vídeo'}</span></> : <><span className="topbar-brand-mark" aria-hidden="true" /><strong>Área principal</strong><span className="topbar-sub">Selecione um canal para começar</span></>}</div><span className="topbar-spacer" /><div className="search-box"><Icon name="search" size={16} /><input ref={searchRef} className="input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar canais…  Ctrl+K" aria-label="Buscar canais" /></div><button className={`icon-btn topbar-alert ${unreadCount ? '' : 'empty'}`} onClick={() => { setNotificationsOpen(true); markNotificationsRead(); }} aria-label={`Notificações${unreadCount ? `, ${unreadCount} novas` : ''}`}><Icon name="bell" /></button><button className="icon-btn mobile-only" onClick={() => handleRightTab('participants', !rightOpen)} aria-label="Participantes"><Icon name="users" /></button><button className="icon-btn" onClick={() => handleRightTab('chat')} aria-label="Chat"><Icon name="chat" /></button><button className="icon-btn" onClick={() => setSettingsOpen(true)} aria-label="Configurações"><Icon name="settings" /></button></header>
       {connecting && <div className="call-loading"><Spinner label="Estabelecendo conexão segura..." /></div>}
       {!active || !token ? <div className="main-content"><section className="call-area"><div className="call-empty"><div className="empty-card"><div className="empty-icon"><Icon name="phone" size={28} /></div><h2 style={{ margin: '0 0 8px' }}>Seu espaço no CPX</h2><p style={{ color: 'var(--muted)', lineHeight: 1.6, fontSize: 13 }}>{maintenance ? 'O servidor está em manutenção. Usuários sem permissão de administrador não podem iniciar novas chamadas neste momento.' : 'Escolha um canal na lateral para entrar na chamada. Você poderá conversar por texto, usar câmera, compartilhar a tela e controlar seu áudio.'}</p><div style={{ marginTop: 17, display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}><Badge tone="purple">Voz</Badge><Badge tone="purple">Vídeo</Badge><Badge tone="purple">Chat</Badge><Badge tone="green">Acesso controlado</Badge></div></div></div></section></div> : <RoomExperience token={token} serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL} channel={active} user={user} rightTab={rightTab} rightPanelOpen={rightOpen} onRightTab={handleRightTab} messages={messages} messageText={messageText} setMessageText={setMessageText} onSendMessage={sendMessage} onToast={pushToast} onDisconnect={disconnect} onModerate={moderate} onCreateInvite={openCallInvite} onRoomMoved={handleRoomMoved} onCallReconnected={handleCallReconnected} participantFilter={rightTab === 'participants' ? search : ''} />}
     </section>
@@ -676,17 +676,17 @@ export default function ServidorPage() {
     <Modal open={moveParticipantOpen} title="Mover participante" onClose={() => { if (!movingParticipant) { setMoveParticipantOpen(false); setMoveSelection(null); } }} width={480}>
       <div style={{ display: 'grid', gap: 14 }}>
         {moveSelection && <div className="profile-identity"><Avatar name={moveSelection.name} size="lg" status="online" /><div><strong>{moveSelection.name}</strong><span>Atual: #{moveSelection.sourceRoom}</span></div></div>}
-        <div className="field"><label>Mover para outra chamada</label><select className="input" value={moveTarget} onChange={(event) => setMoveTarget(event.target.value)} disabled={movingParticipant}>{channels.filter((channel) => channel.name !== moveSelection?.sourceRoom).map((channel) => <option key={channel.id} value={channel.name}># {channel.name}</option>)}</select></div>
+        <div className="field"><label>Transferir para outra chamada</label><select className="input" value={moveTarget} onChange={(event) => setMoveTarget(event.target.value)} disabled={movingParticipant}>{channels.filter((channel) => channel.name !== moveSelection?.sourceRoom).map((channel) => <option key={channel.id} value={channel.name}># {channel.name}</option>)}</select></div>
         <span className="helper">O participante será transferido da chamada atual para a chamada escolhida.</span>
-        <div className="modal-actions"><button type="button" className="ghost-btn" onClick={() => { setMoveParticipantOpen(false); setMoveSelection(null); }} disabled={movingParticipant}>Cancelar</button><button type="button" className="primary-btn" onClick={moveSelectedParticipant} disabled={movingParticipant || !moveSelection || !moveTarget}>{movingParticipant ? <Spinner label="Movendo..." /> : <><Icon name="chevron" size={15} /> Mover para chamada</>}</button></div>
+        <div className="modal-actions"><button type="button" className="ghost-btn" onClick={() => { setMoveParticipantOpen(false); setMoveSelection(null); }} disabled={movingParticipant}>Cancelar</button><button type="button" className="primary-btn" onClick={moveSelectedParticipant} disabled={movingParticipant || !moveSelection || !moveTarget}>{movingParticipant ? <Spinner label="Movendo participante…" /> : <><Icon name="chevron" size={15} /> Mover para chamada</>}</button></div>
       </div>
     </Modal>
 
     <Modal open={callInviteOpen} title={generatedCallInvite ? 'Convite criado' : `Convidar para #${active?.name || 'chamada'}`} onClose={() => { if (!callInviteBusy) { setCallInviteOpen(false); setGeneratedCallInvite(null); } }}>
       {!generatedCallInvite ? <div className="call-invite-dialog">
         <div className="call-invite-target"><Icon name="phone" size={18} /><div><strong>#{active?.name}</strong><span>Convite vinculado a esta chamada.</span></div></div>
-        <p className="helper">O convite usará automaticamente as regras definidas pelo administrador e só pode ser criado enquanto você estiver dentro desta chamada.</p>
-        <div className="modal-actions"><button type="button" className="ghost-btn" onClick={() => setCallInviteOpen(false)} disabled={callInviteBusy}>Cancelar</button><button type="button" className="primary-btn" onClick={createCallInvite} disabled={callInviteBusy}>{callInviteBusy ? <Spinner label="Criando..." /> : <><Icon name="shield" size={15} /> Criar convite</>}</button></div>
+        <p className="helper">O convite seguirá as regras definidas pelo administrador e só poderá ser criado enquanto você estiver nesta chamada.</p>
+        <div className="modal-actions"><button type="button" className="ghost-btn" onClick={() => setCallInviteOpen(false)} disabled={callInviteBusy}>Cancelar</button><button type="button" className="primary-btn" onClick={createCallInvite} disabled={callInviteBusy}>{callInviteBusy ? <Spinner label="Criando convite…" /> : <><Icon name="shield" size={15} /> Criar convite</>}</button></div>
       </div> : <div className="call-invite-dialog">
         <div className="call-invite-success"><Icon name="check" size={18} /><div><strong>Convite pronto</strong><span>#{generatedCallInvite.roomName} · expira em {new Date(generatedCallInvite.expiresAt).toLocaleString('pt-BR')}</span></div></div>
         <div className="call-invite-code"><span>Código</span><strong>{generatedCallInvite.code}</strong></div>
@@ -707,7 +707,7 @@ export default function ServidorPage() {
       <form onSubmit={changeOwnPassword}>
         <div className="field"><label>Nova senha</label><input className="input" type="password" autoComplete="new-password" minLength={8} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required /><span className="helper">Use pelo menos 8 caracteres.</span></div>
         <div className="field"><label>Confirmar nova senha</label><input className="input" type="password" autoComplete="new-password" minLength={8} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required /></div>
-        <div className="modal-actions"><button type="submit" className="primary-btn" disabled={passwordBusy}>{passwordBusy ? <Spinner label="Alterando..." /> : 'Alterar senha'}</button></div>
+        <div className="modal-actions"><button type="submit" className="primary-btn" disabled={passwordBusy}>{passwordBusy ? <Spinner label="Alterando senha…" /> : 'Alterar senha'}</button></div>
       </form>
     </Modal>
 
