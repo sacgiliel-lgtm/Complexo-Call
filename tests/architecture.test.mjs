@@ -50,6 +50,33 @@ test('servidor separates pending Clerk auth from guest sessions', () => {
   assert.match(source, /else if \(isSignedIn === false\)/);
 });
 
+test('display name remains owned by the application profile', () => {
+  const source = read('lib/clerkAuth.js');
+
+  assert.match(source, /O username salvo no perfil é o nome exibido da aplicação/);
+  assert.match(source, /if \(!profile\.username\)/);
+  assert.doesNotMatch(source, /const desiredUsername = user\.username \|\| profile\.username/);
+});
+
+test('profile update synchronizes name to chat history and active LiveKit participant', () => {
+  const route = read('app/api/profile/route.js');
+
+  assert.match(route, /from\('channel_messages'\)/);
+  assert.match(route, /update\(\{ sender_name: data\.username \}\)/);
+  assert.match(route, /new RoomServiceClient/);
+  assert.match(route, /updateParticipant\(roomName, actor\.clerkUserId, \{ name: data\.username \}\)/);
+  assert.match(route, /roomName = String\(body\.roomName/);
+  assert.match(route, /livekitUpdated/);
+});
+
+test('server sends the active room when changing the display name', () => {
+  const page = read('app/servidor/page.js');
+
+  assert.match(page, /roomName: active\?\.name \|\| ''/);
+  assert.match(page, /setMessages\(\(current\) => current\.map/);
+  assert.match(page, /message\.sender_name: nextUsername/);
+});
+  
 test('health endpoint exists and presence heartbeat is configured', () => {
   assert.equal(fs.existsSync(path.join(root, 'app/api/health/route.js')), true);
 
