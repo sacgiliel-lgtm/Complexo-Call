@@ -1,4 +1,5 @@
 import { getRequestActor, actorResponse } from '../../../lib/requestAuth';
+import { RoomServiceClient } from 'livekit-server-sdk';
 import { logDiscordEvent } from '../../../lib/discordLogger';
 
 export async function GET(request) {
@@ -19,6 +20,60 @@ export async function PATCH(request) {
   if (existing) return Response.json({ error: 'Esse nome já está em uso.' }, { status: 409 });
   const { data, error } = await actor.admin.from('profiles').update({ username }).eq('id', actor.id).select('username').single();
   if (error) return Response.json({ error: 'Não foi possível atualizar seu perfil.' }, { status: 500 });
-  await logDiscordEvent({ action: 'profile_updated', actor: { ...actor, username }, target: username, request });
-  return Response.json({ profile: { username: data.username, role: actor.role } });
+
+  // Atualiza também o nome armazenado nas mensagens antigas desse usuário,
+  // mantendo o histórico consistente com o nome exibido atual.
+  const historyUpdate = await actor.admin.from('channel_messages')
+    .update({ sender_name: data.username })
+    .eq('sender_id', actor.id);
+
+  if (historyUpdate.error) {
+    // A alteração do perfil não deve falhar por causa de um histórico de chat
+    // que eventualmente não esteja disponível. O nome novo continuará sendo
+    // usado no próximo token, no participante do LiveKit e nas novas mensagens.
+    console.warn('Profile update: could not refresh historical chat sender names.', historyUpdate.error);
+  }
+
+  const roomName = String(body.roomName ?? '').trim();
+  let livekitUpdated = false;
+
+  if (roomName && actor.clerkUserId && process.env.NEXT_PUBLIC_LIVEKIT_URL && process.env.LIVEKIT_API_KEY && process.env.LIVEKIT_API_SECRET) {
+    const channelLookup = await actor.admin.from('channels')
+      .select('name,is_active')
+      .eq('name', roomName)
+      .maybeSingle();
+
+    if (!channelLookup.error && channelLookup.data?.is_active) {
+      try {
+        const livekitHost = process.env.NEXT_PUBLIC_LIVEKIT_URL
+          .replace(/^wss:/, 'https:')
+          .replace(/^ws:/, 'http:');
+        const service = new RoomServiceClient(
+          livekitHost,
+          process.env.LIVEKIT_API_KEY,
+          process.env.LIVEKIT_API_SECRET,
+        );
+        await service.updateParticipant(roomName, actor.clerkUserId, { name: data.username });
+        livekitUpdated = true;
+      } catch (livekitError) {
+        console.warn('Profile update: LiveKit participant name could not be updated immediately.', livekitError);
+      }
+    }
+  }
+
+  await logDiscordEvent({
+    action: 'profile_updated',
+    actor: { ...actor, username: data.username },
+    target: data.username,
+    details: livekitUpdated ? 'Nome exibido atualizado no perfil, chat e participante conectado.' : 'Nome exibido atualizado no perfil e histórico do chat.',
+    request,
+  });
+
+  return Response.json({
+    profile: {
+      username: data.username,
+      role: actor.role,
+    },
+    livekitUpdated,
+  });
 }
