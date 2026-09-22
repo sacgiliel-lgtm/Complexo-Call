@@ -604,3 +604,24 @@
     transition:none;
   }
 }
+
+/* Keep active screen sharing entirely inside the call stage, above the floating controls. */
+.screenStage{
+  height:calc(100% - 92px);
+  align-self:flex-start;
+  min-height:0;
+}
+.screenCard{
+  height:100%;
+}
+@media(max-width:820px){
+  .screenStage{
+    height:calc(100% - 72px);
+    align-self:flex-start;
+  }
+}
+@media(max-width:520px){
+  .screenStage{
+    height:calc(100% - 68px);
+  }
+}
