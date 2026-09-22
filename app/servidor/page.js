@@ -251,7 +251,7 @@ export default function ServidorPage() {
   async function connect(channel) {
     if (maintenance && user?.role !== 'admin') return pushToast({ type: 'error', title: 'Servidor em manutenção', message: 'Aguarde até que a manutenção seja encerrada.' });
     if (active?.id === channel.id && token) return;
-    setConnecting(true); setActive(channel); setToken(''); setMessages([]); setRightOpen(true);
+    setConnecting(true); setActive(channel); setToken(''); setMessages([]); setRightOpen(false);
     try {
       const headers = {};
       const response = await fetch(`/api/token?room=${encodeURIComponent(channel.name)}`, { headers, cache: 'no-store' });
