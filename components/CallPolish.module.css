@@ -537,3 +537,70 @@
   .panel{width:92vw}
 }
 @media(prefers-reduced-motion:reduce){.toolbar .control{transition:none}}
+
+/* Collapsible right utility panel: hidden until Participants/Chat is requested. */
+.connected{
+  position:relative;
+}
+.panel{
+  position:absolute;
+  top:0;
+  right:0;
+  bottom:0;
+  width:356px;
+  min-width:330px;
+  transform:translateX(102%);
+  transition:transform .26s cubic-bezier(.2,.75,.3,1),box-shadow .26s ease;
+  box-shadow:none;
+}
+.panel.panelOpen{
+  transform:translateX(0);
+  box-shadow:-28px 0 80px rgba(0,0,0,.46);
+}
+.panelCloseButton{
+  position:absolute!important;
+  right:7px;
+  top:7px;
+  z-index:4;
+  width:34px!important;
+  height:34px!important;
+  border-radius:10px!important;
+  background:rgba(255,255,255,.035)!important;
+  border:1px solid rgba(255,255,255,.07)!important;
+}
+.panelCloseButton:hover{
+  background:rgba(156,92,255,.11)!important;
+  border-color:rgba(156,92,255,.25)!important;
+}
+.panelHiddenForScreen{
+  display:none!important;
+}
+@media(max-width:1050px){
+  .panel{
+    width:316px;
+    min-width:300px;
+  }
+}
+@media(max-width:820px){
+  .panel{
+    width:min(356px,89vw);
+    min-width:0;
+    transform:translateX(102%);
+    transition:transform .22s ease,box-shadow .22s ease;
+    box-shadow:none;
+  }
+  .panel.panelOpen{
+    transform:translateX(0);
+    box-shadow:-30px 0 80px rgba(0,0,0,.46);
+  }
+}
+@media(max-width:520px){
+  .panel{
+    width:92vw;
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  .panel{
+    transition:none;
+  }
+}
