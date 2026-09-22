@@ -582,9 +582,34 @@ export default function ServidorPage() {
     event.preventDefault(); if (!cred || user?.type === 'guest') return;
     const name = profileName.trim();
     const headers = { 'Content-Type': 'application/json' };
-    const response = await fetch('/api/profile', { method: 'PATCH', headers, body: JSON.stringify({ username: name }) }); const json = await response.json();
+    const response = await fetch('/api/profile', {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({
+        username: name,
+        roomName: active?.name || '',
+      }),
+    });
+    const json = await response.json();
     if (!response.ok) return pushToast({ type: 'error', title: 'Perfil', message: json.error || 'Não foi possível atualizar o perfil.' });
-    setUser((current) => ({ ...current, username: json.profile.username })); setProfileEditorOpen(false); pushToast({ type: 'success', title: 'Perfil atualizado', message: 'Seu nome foi alterado com sucesso.' });
+
+    const nextUsername = json.profile?.username || name;
+    setUser((current) => ({ ...current, username: nextUsername }));
+    setProfileName(nextUsername);
+
+    // Reflete a alteração imediatamente no histórico carregado nesta tela.
+    setMessages((current) => current.map((message) => (
+      message.sender_id === cred?.id ? { ...message, sender_name: nextUsername } : message
+    )));
+
+    setProfileEditorOpen(false);
+    pushToast({
+      type: 'success',
+      title: 'Perfil atualizado',
+      message: json.livekitUpdated
+        ? 'Seu nome foi atualizado no perfil, na chamada e no chat.'
+        : 'Seu nome foi atualizado no perfil e no chat.',
+    });
   }
 
   async function changeOwnPassword(event) {
