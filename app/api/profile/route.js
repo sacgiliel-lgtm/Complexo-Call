@@ -23,9 +23,16 @@ export async function PATCH(request) {
 
   // Atualiza também o nome armazenado nas mensagens antigas desse usuário,
   // mantendo o histórico consistente com o nome exibido atual.
-  await actor.admin.from('channel_messages')
+  const historyUpdate = await actor.admin.from('channel_messages')
     .update({ sender_name: data.username })
     .eq('sender_id', actor.id);
+
+  if (historyUpdate.error) {
+    // A alteração do perfil não deve falhar por causa de um histórico de chat
+    // que eventualmente não esteja disponível. O nome novo continuará sendo
+    // usado no próximo token, no participante do LiveKit e nas novas mensagens.
+    console.warn('Profile update: could not refresh historical chat sender names.', historyUpdate.error);
+  }
 
   const roomName = String(body.roomName ?? '').trim();
   let livekitUpdated = false;
