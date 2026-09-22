@@ -611,7 +611,18 @@ export default function ServidorPage() {
   }
 
   async function logout() { try { if (user?.type === 'member') await signOut(); else await fetch('/api/guest/logout', { method: 'POST' }); } finally { router.replace('/'); } }
-  function handleRightTab(tab, open = true) { setRightTab(tab); setRightOpen(open); }
+  function handleRightTab(tab, open = true) {
+    if (!open) {
+      setRightTab(tab);
+      setRightOpen(false);
+      return;
+    }
+    setRightOpen((currentOpen) => {
+      if (currentOpen && rightTab === tab) return false;
+      setRightTab(tab);
+      return true;
+    });
+  }
   function clearNotifications() { setNotifications([]); localStorage.removeItem(NOTIFICATION_KEY); }
   function markNotificationsRead() { setNotifications((current) => { const next = current.map((item) => ({ ...item, unread: false })); localStorage.setItem(NOTIFICATION_KEY, JSON.stringify(next)); return next; }); }
 
